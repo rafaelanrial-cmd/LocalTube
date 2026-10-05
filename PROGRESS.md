@@ -9,7 +9,7 @@
 ## Карта этапов (13)
 - [x] **Этап 0** — Окружение: JDK 17, Gradle, Android SDK, adb, git, телефон
 - [x] **Этап 1** — Проект + навигация: скелет Compose, wrapper 8.9, 4 экрана-заглушки (сборка ✓, установка и запуск на телефоне ✓)
-- [ ] **Этап 2** — Room: VideoEntity, DownloadTaskEntity, CommentEntity
+- [x] **Этап 2** — Room: сущности, DAO, AppDatabase v1, репозитории (сборка ✓)
 - [ ] **Этап 3** — Библиотека: список скачанных видео
 - [ ] **Этап 4** — Плеер: Media3 ExoPlayer
 - [ ] **Этап 5** — Детали + удаление
@@ -29,6 +29,27 @@
   процесс (PID 29413) жив, в logcat **0 FATAL EXCEPTION / Fatal signal**
   (шум AppSearchIcing — системная индексация MIUI, не ошибка приложения).
 - В будущих этапах: при `installDebug`/`adb install` ждать подтверждения на телефоне.
+
+## Этап 2 — детали (2026-10-05)
+- [x] `data/db`: **VideoEntity** (`videos`, уникальный индекс по `youtubeId`; audioLangs —
+      строка с кодами через запятую, например "en,ru"), **DownloadTaskEntity** (`download_tasks`,
+      FK→videos.id, onDelete=CASCADE; статус — enum `DownloadStatus` QUEUED|RUNNING|DONE|
+      FAILED|CANCELED, Room хранит имя значения), **CommentEntity** (`comments`, FK→videos.id,
+      CASCADE; parentId для ответов в Этапе 8).
+- [x] DAO: **VideoDao** (getAll — Flow, сортировка по uploadDateEpoch DESC; getById suspend;
+      insert REPLACE → Long; @Delete), **DownloadTaskDao** (Flow всех, getById, update; + insert
+      сверх списка задачи — без него нельзя создать задачу в Этапе 7), **CommentDao**
+      (getByVideoId — Flow, likeCount DESC; insert; deleteByVideoId).
+- [x] **AppDatabase** v1, exportSchema=false; билдер в AppContainer с
+      `fallbackToDestructiveMigration()`; имя файла `localtube.db`.
+- [x] Репозитории (обычные классы, экземпляры в AppContainer через `by lazy`):
+      **VideoRepository** (observeAll/getById/insert/delete), **DownloadRepository**
+      (задачи: observeTasks/getTask/insertTask/updateTask; комментарии: observeComments/
+      insertComment/deleteComments — CommentRepository в плане нет, поэтому операции
+      комментариев живут здесь).
+- [x] Зависимости новые не добавлял: Room 2.6.1 + KSP уже были объявлены в Этапе 1.
+- [x] `gradlew.bat assembleDebug` — **BUILD SUCCESSFUL** (17 c), kspDebugKotlin прошёл
+      без ошибок и предупреждений по схеме.
 
 ## Этап 1 — детали (2026-10-05)
 - [x] MASTER_PLAN.md переписан под новый концепт (оффлайн-YouTube, yt-dlp, Compose+Room);
