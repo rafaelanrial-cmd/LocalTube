@@ -11,7 +11,7 @@
 - [x] **Этап 1** — Проект + навигация: скелет Compose, wrapper 8.9, 4 экрана-заглушки (сборка ✓, установка и запуск на телефоне ✓)
 - [x] **Этап 2** — Room: сущности, DAO, AppDatabase v1, репозитории (сборка ✓)
 - [x] **Этап 3** — Библиотека: LibraryViewModel + LazyColumn карточек (Coil, мм:сс, dd.MM.yyyy, бейдж RU) (сборка ✓, проверка на телефоне ✓)
-- [ ] **Этап 4** — Плеер: Media3 ExoPlayer
+- [x] **Этап 4** — Плеер: Media3 ExoPlayer (сборка ✓, проверка на телефоне ✓: play/pause/seek + пауза при уходе в фон и возобновление)
 - [ ] **Этап 5** — Детали + удаление
 - [ ] **Этап 6** — Добавление: метаданные
 - [ ] **Этап 7** — Скачивание + прогресс
@@ -29,6 +29,48 @@
   процесс (PID 29413) жив, в logcat **0 FATAL EXCEPTION / Fatal signal**
   (шум AppSearchIcing — системная индексация MIUI, не ошибка приложения).
 - В будущих этапах: при `installDebug`/`adb install` ждать подтверждения на телефоне.
+
+## Этап 4 — детали (2026-10-05)
+- [x] **PlayerScreen** (`ui/screens/PlayerScreen.kt`): по `id` из маршрута `player/{id}`; TopAppBar
+      с названием видео и кнопкой «Назад» (ArrowBack → popBackStack). Состояния: Loading / Ready /
+      FileNotFound — «Файл не найден» (иконка PlayCircle + текст) вместо плеера, если записи в Room
+      нет или файла на диске больше нет.
+- [x] **PlayerViewModel** (`ui/screens/PlayerViewModel.kt`): `factory(id)` (ручной DI из AppContainer),
+      `uiState: StateFlow<PlayerUiState>` — читает VideoEntity по id, проверяет существование файла,
+      выдаёт Ready(file) или FileNotFound.
+- [x] **ExoPlayerView** (в PlayerScreen.kt): `remember(file) { ExoPlayer.Builder(context).build() }`;
+      DisposableEffect: `setMediaItem(MediaItem.Builder().setUri(file.toUri()).build())` + prepare + play;
+      onDispose → **player.release()**. AndroidView с `PlayerView` (showController — контроллеры
+      паузы/перемотки из коробки).
+- [x] **Lifecycle**: LifecycleEventObserver на activity — ON_STOP: если играл → pause (+shouldResume);
+      ON_START: если shouldResume → play. Проверено на телефоне: `ON_STOP_PAUSE pos=21784ms` (открыл
+      Настройки) и `ON_START_RESUME pos=21791ms` — возобновление с той же позиции, без сброса в начало.
+- [x] **DetailsScreen**: временная кнопка «Смотреть» → `player/{id}` (TODO(Этап 5): УДАЛИТЬ мост;
+      экран переделывается в Этапе 5). Новые строки: back, player_file_not_found, details_watch.
+- [x] **LibraryViewModel**: тестовое видео вынесено в `companion.createTestVideo(context, repository): Long`
+      (suspend, возвращает id — нужно для отладочного автоперехода); у записи теперь реальный
+      `videoFilePath = externalFilesDir/videos/test.mp4`, durationSec=33, sizeBytes=7_750_868.
+- [x] **Тестовое видео**: URL из задачи (blender.org BigBuckBunny_320x180.mp4) отдаёт 404 — файлы
+      переложили в zip → скачан официальный трейлер Big Buck Bunny `trailer_720x405.mov`
+      (H.264 720×406 + AAC, 33 с, 7,75 МБ; curl потребовал `--ssl-no-revoke`, иначе schannel падает на
+      проверке отзыва сертификата) → `adb push ... /sdcard/Android/data/com.localtube/files/videos/test.mp4`.
+- [x] **Отладочный механизм** (TODO(Этап 12): УДАЛИТЬ — `DebugFlags.kt`, MainActivity, MainScreen,
+      маркеры в PlayerScreen): MIUI блокирует input-события через adb, поэтому файл-флаг
+      `externalFilesDir/debug_goto_player` (`adb shell touch /sdcard/Android/data/com.localtube/files/debug_goto_player`)
+      включает автопереход в плеер и сценарий play → pause(через 4 с) → seekTo(20 с); маркеры — в logcat
+      под тегом `LocalTubeDebug`. Флаг на телефоне удалён после тестов.
+- [x] **Проверка на телефоне** (критерий этапа): автосценарий отработал — `PAUSE pos=1524ms`,
+      `SEEK_20S pos=20000ms` (перемотка работает), пауза/возобновление при уходе в фон (см. выше).
+      Тест «Файл не найден»: удалил test.mp4 → вместо плеера экран «Файл не найден», затем видео вернул
+      (push, 7_750_868 байт на месте). `logcat`: FATAL/AndroidRuntime по com.localtube — нет.
+- [x] `gradlew.bat assembleDebug` — **BUILD SUCCESSFUL** (up-to-date; установленный APK совпадает с кодом).
+      Новые зависимости: нет (Media3 1.4.1 объявлена в Этапе 1).
+
+### Замечания для следующих этапов (2026-10-05)
+- Возврат к остановленному приложению через `am start` требует флагов
+  `--activity-clear-top --activity-single-top`, иначе MainActivity пересоздаётся (проверено: без них —
+  новый инстанс и автосценарий стартует заново, с ними — повторное использование).
+- Автосценарий плеера стартует через 4 с после открытия экрана; до всех маркеров ждать ~15–20 с.
 
 ## Этап 3 — детали (2026-10-05)
 - [x] **LibraryViewModel** (`ui/screens/LibraryViewModel.kt`): `videos: StateFlow<List<VideoEntity>>`

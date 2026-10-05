@@ -13,7 +13,10 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -26,6 +29,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.localtube.R
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import com.localtube.ui.screens.AddScreen
 import com.localtube.ui.screens.DetailsScreen
 import com.localtube.ui.screens.DownloadsScreen
@@ -43,10 +48,20 @@ private val topLevelRoutes = setOf(
 
 /** Корневой экран: NavHost + нижняя панель (Библиотека/Загрузки/Добавить/Настройки). */
 @Composable
-fun MainScreen() {
+fun MainScreen(
+    // TODO(Этап 12): УДАЛИТЬ — отладочный автопереход в плеер (MIUI блокирует input).
+    debugPlayerId: StateFlow<Long?> = remember { MutableStateFlow<Long?>(null) },
+) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+
+    // TODO(Этап 12): УДАЛИТЬ — автопереход в плеер по отладочному флагу.
+    val debugId by debugPlayerId.collectAsState()
+    LaunchedEffect(debugId) {
+        val id = debugId ?: return@LaunchedEffect
+        navController.navigate(Routes.player(id))
+    }
 
     Scaffold(
         bottomBar = {
@@ -68,13 +83,19 @@ fun MainScreen() {
                 route = Routes.DETAILS,
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
             ) { entry ->
-                DetailsScreen(id = entry.arguments?.getLong("id") ?: 0L)
+                DetailsScreen(
+                    id = entry.arguments?.getLong("id") ?: 0L,
+                    navController = navController,
+                )
             }
             composable(
                 route = Routes.PLAYER,
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
             ) { entry ->
-                PlayerScreen(id = entry.arguments?.getLong("id") ?: 0L)
+                PlayerScreen(
+                    id = entry.arguments?.getLong("id") ?: 0L,
+                    onBack = { navController.popBackStack() },
+                )
             }
         }
     }

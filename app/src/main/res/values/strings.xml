@@ -15,6 +15,9 @@
     <string name="title_details">Детали видео</string>
     <string name="title_player">Плеер</string>
 
+    <!-- Общие -->
+    <string name="back">Назад</string>
+
     <!-- Библиотека (Этап 3) -->
     <string name="empty_library">Здесь появятся скачанные видео</string>
     <string name="library_add_video">Добавить видео</string>
@@ -26,4 +29,10 @@
     <string name="empty_settings">Скоро: настройки приложения</string>
     <string name="details_stub">Видео с id: %1$d</string>
     <string name="player_stub">Плеер для видео с id: %1$d</string>
+
+    <!-- Плеер (Этап 4) -->
+    <string name="player_file_not_found">Файл не найден</string>
+
+    <!-- Детали (Этап 4 — временная кнопка) -->
+    <string name="details_watch">Смотреть</string>
 </resources>

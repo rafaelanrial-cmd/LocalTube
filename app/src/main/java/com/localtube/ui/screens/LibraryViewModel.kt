@@ -31,26 +31,42 @@ class LibraryViewModel(private val repository: VideoRepository) : ViewModel() {
     // TODO(Этап 7): УДАЛИТЬ — временное тестовое видео для проверки экрана.
     fun addTestVideo() {
         viewModelScope.launch {
-            val context = LocalTubeApp.instance.container.context
-            repository.insert(
+            createTestVideo(LocalTubeApp.instance.container.context, repository)
+        }
+    }
+
+    companion object {
+        /**
+         * Фиксированный id тестового видео: повторный клик заменяет запись
+         * (OnConflictStrategy.REPLACE по youtubeId), дублей не появляется.
+         */
+        private const val TEST_YOUTUBE_ID = "localtube-test-video"
+
+        /**
+         * TODO(Этап 7): УДАЛИТЬ — создаёт/заменяет тестовое видео и возвращает ключ записи.
+         * С Этапа 4 у записи есть videoFilePath (videos/test.mp4), чтобы его можно
+         * было открыть в плеере; файл кладётся на телефон через adb push.
+         */
+        suspend fun createTestVideo(context: Context, repository: VideoRepository): Long {
+            val root = context.getExternalFilesDir(null) ?: context.filesDir
+            return repository.insert(
                 VideoEntity(
                     youtubeId = TEST_YOUTUBE_ID,
                     title = "Тестовое видео",
-                    description = "Временная запись для проверки экрана «Библиотека» (Этап 3).",
+                    description = "Временная запись для проверки библиотеки и плеера (Этапы 3–4).",
                     uploadDateEpoch = System.currentTimeMillis() / 1000L,
-                    durationSec = 254L, // 4:14
+                    durationSec = 33L, // реальная длительность ролика
                     thumbnailPath = createTestThumbnail(context),
-                    videoFilePath = "",
-                    sizeBytes = 12_345_678L,
+                    videoFilePath = File(root, "videos/test.mp4").absolutePath,
+                    sizeBytes = 7_750_868L,
                     audioLangs = "en,ru",
                     hasRuTrack = true,
                 ),
             )
         }
-    }
 
-    /** Генерирует превью PNG для тестового видео в thumbs/ (если ещё нет). */
-    private fun createTestThumbnail(context: Context): String {
+        /** Генерирует превью PNG для тестового видео в thumbs/ (если ещё нет). */
+        private fun createTestThumbnail(context: Context): String {
         val root = context.getExternalFilesDir(null) ?: context.filesDir
         val dir = File(root, "thumbs")
         if (!dir.exists()) {
@@ -73,13 +89,6 @@ class LibraryViewModel(private val repository: VideoRepository) : ViewModel() {
         }
         return file.absolutePath
     }
-
-    companion object {
-        /**
-         * Фиксированный id тестового видео: повторный клик заменяет запись
-         * (OnConflictStrategy.REPLACE по youtubeId), дублей не появляется.
-         */
-        private const val TEST_YOUTUBE_ID = "localtube-test-video"
 
         /** Фабрика: репозиторий берём из AppContainer (ручной DI, без Hilt). */
         fun factory(): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
