@@ -3,6 +3,7 @@ package com.localtube.di
 import android.content.Context
 import androidx.room.Room
 import com.localtube.data.db.AppDatabase
+import com.localtube.data.downloader.YtDlpManager
 import com.localtube.data.repo.DownloadRepository
 import com.localtube.data.repo.VideoRepository
 
@@ -10,7 +11,7 @@ import com.localtube.data.repo.VideoRepository
  * Ручной DI-контейнер приложения (без Hilt).
  * Здесь создаются и хранятся:
  *  - Room-база (AppDatabase) и репозитории (data/repo) — Этап 2;
- *  - скачиватель (data/downloader) — Этап 7;
+ *  - движок yt-dlp (data/downloader) — Этап 6, скачивание — Этап 7;
  *  - DataStore-настройки — Этап 10.
  */
 class AppContainer(appContext: Context) {
@@ -32,5 +33,8 @@ class AppContainer(appContext: Context) {
         DownloadRepository(database.downloadTaskDao(), database.commentDao())
     }
 
-    // TODO(Этап 7): lateinit var downloader: YtdlpDownloader
+    // Этап 6: движок yt-dlp (инициализация стартует в LocalTubeApp.onCreate).
+    val ytDlpManager: YtDlpManager by lazy { YtDlpManager(context) }
+
+    // TODO(Этап 7): скачивание по задачам DownloadTaskEntity
 }

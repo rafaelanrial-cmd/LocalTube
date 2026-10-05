@@ -53,6 +53,8 @@ fun MainScreen(
     debugPlayerId: StateFlow<Long?> = remember { MutableStateFlow<Long?>(null) },
     // TODO(Этап 12): УДАЛИТЬ — отладочный автопереход в детали + автотест удаления (Этап 5).
     debugDetailsId: StateFlow<Long?> = remember { MutableStateFlow<Long?>(null) },
+    // TODO(Этап 12): УДАЛИТЬ — отладочная автопроверка ссылки на экране «Добавить» (Этап 6).
+    debugAddUrl: StateFlow<String?> = remember { MutableStateFlow<String?>(null) },
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -72,6 +74,12 @@ fun MainScreen(
         navController.navigate(Routes.details(id))
     }
 
+    // TODO(Этап 12): УДАЛИТЬ — автопереход в «Добавить» по отладочному флагу (Этап 6).
+    val debugAddValue by debugAddUrl.collectAsState()
+    LaunchedEffect(debugAddValue) {
+        if (debugAddValue != null) navController.navigate(Routes.ADD)
+    }
+
     Scaffold(
         bottomBar = {
             if (currentRoute in topLevelRoutes) {
@@ -86,7 +94,10 @@ fun MainScreen(
         ) {
             composable(Routes.LIBRARY) { LibraryScreen(navController = navController) }
             composable(Routes.DOWNLOADS) { DownloadsScreen() }
-            composable(Routes.ADD) { AddScreen() }
+            // TODO(Этап 12): УДАЛИТЬ debugAutoCheckUrl — отладочная автопроверка ссылки (Этап 6).
+            composable(Routes.ADD) {
+                AddScreen(navController = navController, debugAutoCheckUrl = debugAddValue)
+            }
             composable(Routes.SETTINGS) { SettingsScreen() }
             composable(
                 route = Routes.DETAILS,

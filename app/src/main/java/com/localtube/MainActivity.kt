@@ -19,6 +19,9 @@ class MainActivity : ComponentActivity() {
     // TODO(Этап 12): УДАЛИТЬ — отладочный автопереход в детали + автотест удаления (Этап 5).
     private val debugDetailsId = MutableStateFlow<Long?>(null)
 
+    // TODO(Этап 12): УДАЛИТЬ — отладочная автопроверка ссылки на экране «Добавить» (Этап 6).
+    private val debugAddUrl = MutableStateFlow<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -29,6 +32,8 @@ class MainActivity : ComponentActivity() {
                     debugPlayerId = debugPlayerId,
                     // TODO(Этап 12): УДАЛИТЬ — параметр отладочного автоперехода (Этап 5).
                     debugDetailsId = debugDetailsId,
+                    // TODO(Этап 12): УДАЛИТЬ — параметр отладочной автопроверки ссылки (Этап 6).
+                    debugAddUrl = debugAddUrl,
                 )
             }
         }
@@ -40,6 +45,11 @@ class MainActivity : ComponentActivity() {
      */
     private fun maybeStartDebugNavigation() {
         val appContainer = LocalTubeApp.instance.container
+        // TODO(Этап 12): УДАЛИТЬ — флаг «добавить»: ссылка из файла, автопереход в «Добавить».
+        if (DebugFlags.addUrlFlagFile(this).exists()) {
+            debugAddUrl.value = DebugFlags.readAddUrlFlag(this)
+            return
+        }
         if (DebugFlags.flagFile(this).exists()) {
             lifecycleScope.launch {
                 debugPlayerId.value = LibraryViewModel.createTestVideo(

@@ -1,0 +1,85 @@
+package com.localtube.data.downloader
+
+import android.content.Context
+import com.yausername.ffmpeg.FFmpeg
+import com.yausername.youtubedl_android.YoutubeDL
+import com.yausername.youtubedl_android.YoutubeDLRequest
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+/** Ошибка движка скачивания (инициализация или запрос метаданных). */
+class YtDlpException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
+/**
+ * Обёртка над youtubedl-android (yt-dlp): инициализация при старте приложения
+ * и получение метаданных видео (`-J --no-playlist`) — Этап 6.
+ * Само скачивание появится в Этапе 7.
+ */
+class YtDlpManager(appContext: Context) {
+
+    private val context = appContext.applicationContext
+    /** Фоновая область для одноразовой инициализации движка. */
+    private val initScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var initDeferred: CompletableDeferred<Unit>? = null
+
+    /**
+     * Инициализирует yt-dlp и ffmpeg (распаковка python/yt-dlp на диск,
+     * может занять несколько секунд). Вызывается один раз при старте приложения;
+     * повторные вызовы игнорируются.
+     */
+    fun startInit() {
+        if (initDeferred != null) return
+        val deferred = CompletableDeferred<Unit>()
+        initDeferred = deferred
+        initScope.launch {
+            try {
+                FFmpeg.init(context)
+                YoutubeDL.init(context)
+                deferred.complete(Unit)
+            } catch (t: Throwable) {
+                deferred.completeExceptionally(t)
+            }
+        }
+    }
+
+    /** Ждёт результат [startInit]; при неудаче бросает [YtDlpException]. */
+    private suspend fun ensureInit() {
+        val deferred =
+            initDeferred ?: throw YtDlpException("Движок скачивания ещё не инициализирован")
+        try {
+            deferred.await()
+        } catch (t: Throwable) {
+            throw YtDlpException("Не удалось инициализировать движок скачивания", t)
+        }
+    }
+
+    /**
+     * Получает метаданные видео по ссылке: yt-dlp `-J --no-playlist`, парсинг JSON.
+     * @throws YtDlpException при ошибке сети, парсинга или инициализации.
+     */
+    suspend fun fetchInfo(url: String): VideoInfoData = withContext(Dispatchers.IO) {
+        ensureInit()
+        val request = YoutubeDLRequest(url)
+            .addOption("--no-playlist")
+            .addOption("-J")
+        try {
+            val response = YoutubeDL.execute(request, null, null)
+            if (response.exitCode != 0) {
+                // yt-dlp пишет причину в stderr (например, «Video unavailable»).
+                val reason = response.err.trim().lineSequence()
+                    .lastOrNull { it.isNotBlank() }?.take(300)
+                    ?: "код ${response.exitCode}"
+                throw YtDlpException("yt-dlp: $reason")
+            }
+            parseYtDlpJson(response.out)
+        } catch (e: YtDlpException) {
+            throw e
+        } catch (e: Exception) {
+            throw YtDlpException("Не удалось получить информацию о видео", e)
+        }
+    }
+}

@@ -13,6 +13,8 @@ class LocalTubeApp : Application() {
         super.onCreate()
         instance = this
         container = AppContainer(this)
+        // Этап 6: инициализация yt-dlp/ffmpeg в фоне (распаковка занимает секунды).
+        container.ytDlpManager.startInit()
     }
 
     companion object {

@@ -25,7 +25,6 @@
 
     <!-- Сообщения-заглушки -->
     <string name="empty_downloads">Активных загрузок нет</string>
-    <string name="empty_add">Скоро: добавление видео по ссылке</string>
     <string name="empty_settings">Скоро: настройки приложения</string>
     <string name="player_stub">Плеер для видео с id: %1$d</string>
 
@@ -46,4 +45,19 @@
     <string name="details_delete_dialog_text">Освободится %1$s МБ.</string>
     <string name="details_cancel">Отмена</string>
     <string name="details_not_found">Видео не найдено</string>
+
+    <!-- Добавление (Этап 6) -->
+    <string name="add_url_hint">Ссылка на видео YouTube</string>
+    <string name="add_invalid_url">Нужна ссылка вида https://www.youtube.com/watch?v=… или https://youtu.be/…</string>
+    <string name="add_check">Проверить</string>
+    <string name="add_check_failed">Не удалось получить информацию о видео. Проверьте ссылку и интернет.</string>
+    <string name="add_audio">Аудио</string>
+    <string name="add_audio_original">Оригинал</string>
+    <string name="add_audio_ru">Русская</string>
+    <string name="add_audio_both">Обе дорожки</string>
+    <string name="add_quality">Качество</string>
+    <string name="add_quality_720">720p</string>
+    <string name="add_quality_1080">1080p</string>
+    <string name="add_comments_label">Комментарии</string>
+    <string name="add_download">Скачать</string>
 </resources>

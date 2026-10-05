@@ -13,7 +13,7 @@
 - [x] **Этап 3** — Библиотека: LibraryViewModel + LazyColumn карточек (Coil, мм:сс, dd.MM.yyyy, бейдж RU) (сборка ✓, проверка на телефоне ✓)
 - [x] **Этап 4** — Плеер: Media3 ExoPlayer (сборка ✓, проверка на телефоне ✓: play/pause/seek + пауза при уходе в фон и возобновление)
 - [x] **Этап 5** — Детали + удаление (сборка ✓, проверка на телефоне ✓: автотест удаления, du до/после, карточка исчезла)
-- [ ] **Этап 6** — Добавление: метаданные
+- [x] **Этап 6** — Добавление: метаданные (сборка ✓, проверка на телефоне по реальной ссылке ✓: FETCH_OK + карточка с верными данными)
 - [ ] **Этап 7** — Скачивание + прогресс
 - [ ] **Этап 8** — Комментарии
 - [ ] **Этап 9** — RU-дорожка
@@ -29,6 +29,68 @@
   процесс (PID 29413) жив, в logcat **0 FATAL EXCEPTION / Fatal signal**
   (шум AppSearchIcing — системная индексация MIUI, не ошибка приложения).
 - В будущих этапах: при `installDebug`/`adb install` ждать подтверждения на телефоне.
+
+## Этап 6 — детали (2026-10-06)
+- [x] **README** (`docs/ytdlp-readme.md`): URL из задачи (`…/main/README.md`) отдаёт **404** — дефолтная ветка
+      репозитория `JunkFood02/youtubedl-android` это **`master`**, не `main`. Актуальный URL:
+      `https://raw.githubusercontent.com/JunkFood02/youtubedl-android/master/README.md`. API сверено с
+      исходниками 0.18.x: `YoutubeDL.init(context)`, `FFmpeg.init(context)`,
+      `YoutubeDL.execute(request, null, null)` → `YoutubeDLResponse(out, err, exitCode)`.
+- [x] **YtDlpManager** (`data/downloader/YtDlpManager.kt`): `startInit()` — FFmpeg.init + YoutubeDL.init
+      в фоне (SupervisorJob+IO, CompletableDeferred), вызывается один раз в `LocalTubeApp.onCreate`
+      (инициализация при старте приложения). `suspend fetchInfo(url)`: `YoutubeDLRequest(url)` +
+      `--no-playlist` + `-J`, парсинг JSON через kotlinx-serialization. Проверка `exitCode != 0` →
+      ошибка с последней непустой строкой stderr (иначе битая ссылка давала бы «не удалось разобрать
+      JSON»). `ensureInit` бросает понятную ошибку, если инициализация ещё не запущена.
+- [x] **VideoInfoData** (`data/downloader/VideoInfoData.kt`): id, title, description, upload_date
+      ("YYYYMMDD" → epoch UTC), duration, thumbnail, уникальные языки аудио из `formats[].language`,
+      `hasRuTrack = "ru" in langs`. Парсинг с `ignoreUnknownKeys` (сотни лишних полей игнорируются).
+- [x] **AppContainer**: `val ytDlpManager: YtDlpManager by lazy { YtDlpManager(context) }`.
+- [x] **AddScreen** (`ui/screens/AddScreen.kt`, заглушка удалена): поле ссылки с валидацией
+      (regex: `youtube.com/watch…v=<11 симв>` и `youtu.be/<11 симв>`, isError + supportingText),
+      кнопка «Проверить» (spinner при Checking, disabled на невалидной ссылке). После проверки —
+      **AddVideoCard** (`ui/components/AddVideoCard.kt`, новый): превью 200dp через Coil по https-ссылке
+      (заглушка с иконкой если нет), название (3 строки), «dd.MM.yyyy · мм:сс». Секция «Аудио»:
+      радиокнопки «Оригинал» / «Русская» (видна только если hasRuTrack) / «Обе дорожки». «Качество»:
+      сегментные кнопки 720p/1080p. Чекбокс «Комментарии» (вкл по умолчанию). Кнопка «Скачать».
+- [x] **AddViewModel** (`ui/screens/AddViewModel.kt`): состояния Idle/Checking/Checked(info)/CheckFailed;
+      опции сбрасываются под новое видео; `download()` — создаёт VideoEntity (метаданные из yt-dlp,
+      пути к файлам пустые — заполнит Этап 7) + DownloadTask(QUEUED), возвращает true → экран
+      переходит на Загрузки (`popUpTo startDestination { saveState } launchSingleTop restoreState`).
+- [x] **strings.xml**: +13 строк экрана «Добавить» (все тексты UI на русском), удалена неиспользуемая
+      `empty_add`.
+- [x] **Отладочный механизм** (TODO(Этап 12): УДАЛИТЬ — MIUI блокирует input): файл-флаг
+      `externalFilesDir/debug_add_url`, содержимое = URL → MainActivity читает, MainScreen автопереходит
+      в «Добавить», AddViewModel подставляет ссылку и сам жмёт «Проверить». Маркеры logcat (тег
+      `LocalTubeDebug`): `FETCH_OK id=… langs=… hasRu=…`, `FETCH_FAIL`, `TASK_QUEUED videoId=… audio=…
+      quality=… comments=…`. Флаг удалён после тестов.
+- [x] **Проверка на телефоне** (критерий этапа): реальная ссылка `dQw4w9WgXcQ` (Rick Astley —
+      Never Gonna Give You Up). Ground truth получен с телефона через innertube
+      (`/youtubei/v1/player`): title «Rick Astley - Never Gonna Give You Up (Official Video)
+      (4K Remaster)», lengthSeconds=213, publishDate 2009-10-24T23:57:33−07:00 (UTC → 25.10.2009),
+      аудио только en. Результат: `FETCH_OK id=dQw4w9WgXcQ langs=en hasRu=false` — совпадает.
+      uiautomator dump карточки: название точно как в ground truth, строка «**25.10.2009 · 3:33**»,
+      секции Аудио (Оригинал/Обе дорожки — **«Русская» отсутствует**, т.к. hasRu=false) / Качество
+      (720p выбрано, 1080p) / чекбокс «Комментарии» checked=true. Пиксельный анализ скриншота:
+      84 539 уникальных цветов в области превью — кадр видео реально загружен Coil по https
+      (заглушка дала бы <50). `TASK_QUEUED videoId=1 audio=ORIGINAL quality=720 comments=true`
+      (кнопка «Скачать» сработала от случайного события monkey) → VideoEntity + DownloadTask(QUEUED)
+      созданы, переход на Загрузки. FATAL/AndroidRuntime по com.localtube — нет.
+- [x] **Очистка после теста**: `run-as com.localtube rm database/localtube.db` (тестовое видео +
+      QUEUED-задача удалены — Этап 7 стартует с чистой БД), флаг `debug_add_url` удалён.
+- [x] `gradlew.bat assembleDebug` — **BUILD SUCCESSFUL** (13 c). Новые зависимости: нет
+      (youtubedl-android 0.18.1 + ffmpeg и kotlinx-serialization объявлены в Этапе 1).
+
+### Замечания для следующих этапов (2026-10-06)
+- **Material3 1.3.0**: `SegmentedButtonDefaults.itemShape` принимает `(index, count)`, а не
+  `(first, last)` (это добавилось в более новых версиях). При апгрейде BOM — проверить.
+- Ссылки на YouTube с ПК: watch-страница и innertube API **недоступны** (DPI рвёт TLS/EOF),
+  работает только oembed. Ground truth для тестов брать **с телефона**: `adb shell curl -X POST
+  'https://www.youtube.com/youtubei/v1/player' …` (curl на телефоне есть, YouTube доступен).
+- yt-dlp 2026.08.19 установлен на ПК через pip (Python 3.11) — но к YouTube с ПК не долбит;
+  для оффлайн-сайтов пригодится.
+- MIUI агрессивно убивает фоновые процессы: приложение может закрыться через ~1–2 минуты после
+  запуска — для скриншотов/дампов запускать и снимать быстро (окно ~30 с после FETCH_OK).
 
 ## Этап 5 — детали (2026-10-06)
 - [x] **DetailsScreen** (`ui/screens/DetailsScreen.kt`, заглушка удалена, 299 строк): по `id` из
