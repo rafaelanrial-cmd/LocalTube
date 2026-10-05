@@ -60,7 +60,7 @@ fun MainScreen() {
             startDestination = Routes.LIBRARY,
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable(Routes.LIBRARY) { LibraryScreen() }
+            composable(Routes.LIBRARY) { LibraryScreen(navController = navController) }
             composable(Routes.DOWNLOADS) { DownloadsScreen() }
             composable(Routes.ADD) { AddScreen() }
             composable(Routes.SETTINGS) { SettingsScreen() }

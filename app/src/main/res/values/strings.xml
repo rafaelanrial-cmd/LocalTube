@@ -15,8 +15,12 @@
     <string name="title_details">Детали видео</string>
     <string name="title_player">Плеер</string>
 
+    <!-- Библиотека (Этап 3) -->
+    <string name="empty_library">Здесь появятся скачанные видео</string>
+    <string name="library_add_video">Добавить видео</string>
+    <string name="library_add_test_video">+ тестовое видео</string>
+
     <!-- Сообщения-заглушки -->
-    <string name="empty_library">Здесь будут скачанные видео</string>
     <string name="empty_downloads">Активных загрузок нет</string>
     <string name="empty_add">Скоро: добавление видео по ссылке</string>
     <string name="empty_settings">Скоро: настройки приложения</string>

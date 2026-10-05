@@ -10,7 +10,7 @@
 - [x] **Этап 0** — Окружение: JDK 17, Gradle, Android SDK, adb, git, телефон
 - [x] **Этап 1** — Проект + навигация: скелет Compose, wrapper 8.9, 4 экрана-заглушки (сборка ✓, установка и запуск на телефоне ✓)
 - [x] **Этап 2** — Room: сущности, DAO, AppDatabase v1, репозитории (сборка ✓)
-- [ ] **Этап 3** — Библиотека: список скачанных видео
+- [x] **Этап 3** — Библиотека: LibraryViewModel + LazyColumn карточек (Coil, мм:сс, dd.MM.yyyy, бейдж RU) (сборка ✓, проверка на телефоне ✓)
 - [ ] **Этап 4** — Плеер: Media3 ExoPlayer
 - [ ] **Этап 5** — Детали + удаление
 - [ ] **Этап 6** — Добавление: метаданные
@@ -29,6 +29,41 @@
   процесс (PID 29413) жив, в logcat **0 FATAL EXCEPTION / Fatal signal**
   (шум AppSearchIcing — системная индексация MIUI, не ошибка приложения).
 - В будущих этапах: при `installDebug`/`adb install` ждать подтверждения на телефоне.
+
+## Этап 3 — детали (2026-10-05)
+- [x] **LibraryViewModel** (`ui/screens/LibraryViewModel.kt`): `videos: StateFlow<List<VideoEntity>>`
+      из `VideoRepository.observeAll()` (= VideoDao.getAll()), `stateIn(WhileSubscribed(5s))`.
+      Фабрика `factory()` тянет репозиторий из `LocalTubeApp.instance.container` (ручной DI).
+- [x] **LibraryScreen** (`ui/screens/LibraryScreen.kt`, заглушка удалена): LazyColumn карточек
+      (contentPadding 16dp, spacing 12dp), клик → `details/{id}`. Пустое состояние:
+      «Здесь появятся скачанные видео» + Button «Добавить видео» (→ add) + OutlinedButton
+      «+ тестовое видео». Строки — в strings.xml.
+- [x] **VideoCard** (`ui/components/VideoCard.kt`): ElevatedCard, превью 160dp через Coil
+      `AsyncImage(File(thumbnailPath))` (ContentScale.Crop); если файла нет — заглушка с иконкой
+      PlayCircle. Бейдж «RU» (Surface primaryContainer) в правом верхнем углу превью, если hasRuTrack.
+      Метастрока: «мм:сс · dd.MM.yyyy» (formatDuration/formatDate; пустые части не показываются).
+- [x] Временное тестовое видео (TODO(Этап 7): УДАЛИТЬ в ViewModel и на экране): фиксированный
+      youtubeId `localtube-test-video` (REPLACE — дублей нет), title «Тестовое видео», 254 с (4:14),
+      дата = сейчас, audioLangs "en,ru", hasRuTrack=true; превью PNG 640×360 (#1565C0 + текст)
+      генерируется в `getExternalFilesDir(null)/thumbs/test_video.png`, чтобы проверить Coil по файлу.
+- [x] `gradlew.bat assembleDebug` — **BUILD SUCCESSFUL** (10 c). Новые зависимости: нет
+      (Coil 2.7.0 и lifecycle-viewmodel-compose уже были в дереве).
+- [x] Телефон: `adb install -r` = Success (без подтверждения MIUI), запуск, дамп UI:
+      карточка видна — «Тестовое видео», «4:14 · 05.10.2026», бейдж «RU»; скриншот + пиксельная
+      проверка подтвердили, что превью отрисовано из файла (≈105k синих пикселей #1565C0).
+      Клик по карточке → экран деталей («Видео с id: 1»). `logcat -d *:E`: ошибок com.localtube нет
+      (только системный шум MIUI: AppSearchIcing, ActivityManagerWrapper; единственный FATAL —
+      в чужом приложении com.wb.courier).
+
+### Замечания для следующих этапов (2026-10-05)
+- **MIUI блокирует `adb shell input tap/keyevent`** (SecurityException INJECT_EVENTS) — нужен
+  «Отладка по USB (безопасность)» в настройках разработчика. Обход: тапать через
+  `adb shell monkey -p com.localtube 1` (случайные события, но права есть) и проверять результат
+  через `uiautomator dump`.
+- **Git Bash конвертирует аргументы вида `/sdcard/...`** в локальные пути: перед adb-командами
+  с device-путями ставить `export MSYS2_ARG_CONV_EXCL='*'` (иначе `adb shell uiautomator dump /sdcard/ui.xml`
+  ломается).
+- Скриншот телефона: `adb exec-out screencap -p > shot.png`; анализ пикселей — Python+PIL.
 
 ## Этап 2 — детали (2026-10-05)
 - [x] `data/db`: **VideoEntity** (`videos`, уникальный индекс по `youtubeId`; audioLangs —
