@@ -1,0 +1,25 @@
+<resources>
+    <string name="app_name">LocalTube</string>
+
+    <!-- Нижняя панель -->
+    <string name="nav_library">Библиотека</string>
+    <string name="nav_downloads">Загрузки</string>
+    <string name="nav_add">Добавить</string>
+    <string name="nav_settings">Настройки</string>
+
+    <!-- Заголовки экранов -->
+    <string name="title_library">Библиотека</string>
+    <string name="title_downloads">Загрузки</string>
+    <string name="title_add">Добавить видео</string>
+    <string name="title_settings">Настройки</string>
+    <string name="title_details">Детали видео</string>
+    <string name="title_player">Плеер</string>
+
+    <!-- Сообщения-заглушки -->
+    <string name="empty_library">Здесь будут скачанные видео</string>
+    <string name="empty_downloads">Активных загрузок нет</string>
+    <string name="empty_add">Скоро: добавление видео по ссылке</string>
+    <string name="empty_settings">Скоро: настройки приложения</string>
+    <string name="details_stub">Видео с id: %1$d</string>
+    <string name="player_stub">Плеер для видео с id: %1$d</string>
+</resources>

@@ -1,0 +1,4 @@
+<resources>
+    <!-- Compose рисует весь UI; тема нужна только для окна и статус-бара -->
+    <style name="Theme.LocalTube" parent="android:Theme.Material.NoActionBar" />
+</resources>

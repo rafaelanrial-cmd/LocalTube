@@ -1,44 +1,38 @@
-# LocalTube — MASTER_PLAN
+# LocalTube — локальный оффлайн-YouTube (Xiaomi 12X, Android 13)
+Папка проекта: F:\DDDDDDDDDDDDDDDDDDDDDDDDDDDDDD\LocalTube
+Цепочка: вставил ссылку → приложение скачало (видео, RU-аудио если есть, превью,
+описание, комментарии) → смотришь оффлайн → удаляешь для освобождения памяти.
 
-## Проект
-Android-приложение **LocalTube** — локальный видеоплеер с привычным интерфейсом в духе YouTube.
-Приложение сканирует видео в папках телефона и показывает их как на YouTube: сетка обложек,
-плеер, продолжение просмотра, поиск, настройки. Интернет не требуется.
+## Стек и версии (не менять без причину)
+Gradle 8.9, AGP 8.5.2, Kotlin 2.0.20 (+ plugin.compose), KSP 2.0.20-1.0.25,
+compileSdk 34, minSdk 31, targetSdk 34, applicationId com.localtube.
+Compose BOM 2024.09.03 (Material3), Navigation Compose 2.8.0, Room 2.6.1,
+DataStore 1.1.1, Media3 1.4.1, Coil 2.7.0, kotlinx-serialization 1.7.2.
+Скачивание: io.github.junkfood02.youtubedl-android:library + :ffmpeg
+(актуальную версию проверь: curl https://repo1.maven.org/maven2/io/github/junkfood02/youtubedl-android/library/maven-metadata.xml).
+ОБЯЗАТЕЛЬНО в app/build.gradle.kts: packaging { jniLibs { useLegacyPackaging = true } }
+Разрешение INTERNET добавить сразу. DI — ручной AppContainer, без Hilt.
+Файлы храним в context.getExternalFilesDir(null), подпапки videos/, thumbs/.
+Тексты UI на русском.
 
-## Стек технологий (фиксированный)
-- Kotlin; minSdk 26, target/compileSdk 34
-- Плеер: Media3 ExoPlayer (`androidx.media3:media3-exoplayer`)
-- UI: RecyclerView + ViewBinding, Material Components
-- Новые зависимости — только если прямо сказано в задаче этапа
+## Структура
+data/db, data/repo, data/downloader, service,
+ui/screens/{library,downloads,add,details,player,settings}, ui/components
 
-## Правила для всех этапов
-1. Тексты интерфейса — на русском.
-2. Файлы длиннее 300 строк разбивать.
-3. Не переписывать работающий код без необходимости; будущие этапы не делать заранее.
-4. Память проекта: этот файл + PROGRESS.md + код (между чатами памяти нет).
-5. В конце каждого этапа: `gradlew.bat assembleDebug`, исправить все ошибки сборки,
-   обновить PROGRESS.md, коммит `git add -A && git commit -m "Этап N: кратко"`.
-6. Если одна и та же ошибка повторилась 3 раза — остановиться и записать блок «ПРОБЛЕМА» в PROGRESS.md.
+## Сущности Room
+VideoEntity(id, youtubeId, title, description, uploadDateEpoch, durationSec,
+ thumbnailPath, videoFilePath, sizeBytes, audioLangs, hasRuTrack)
+DownloadTaskEntity(id, videoId, url, status QUEUED|RUNNING|DONE|FAILED|CANCELED,
+ progressPercent, speedBps, etaSec, videoOk, thumbOk, commentsOk, errorMsg)
+CommentEntity(id, videoId, author, text, likeCount, publishedAtEpoch, parentId)
 
-## Этапы
-- **0.** Подготовка ПК к Android-разработке (JDK 17, Gradle, Android SDK, adb, git).
-- **1.** Каркас проекта: Gradle-проект + wrapper, манифест, тема, главный экран «LocalTube»; `assembleDebug` собирается.
-- **2.** Установка и запуск на телефоне через adb.
-- **3.** Список видео: разрешение на хранилище, сканирование папок, сетка RecyclerView с миниатюрами.
-- **4.** Экран плеера: ExoPlayer, play/pause, полноэкранный режим.
-- **5.** Управление: прогресс-бар, перемотка, ±10 сек, скорость воспроизведения.
-- **6.** Продолжение с места + раздел «Продолжить просмотр» на главном экране.
-- **7.** Поиск и фильтры (по имени, дате, папке).
-- **8.** Настройки: тема, скорость по умолчанию, папка хранения.
-- **9.** Избранное и плейлисты.
-- **10.** Полировка: иконка, сплэш-экран, обработка ошибок, пустые состояния.
-- **11.** Производительность: ленивые миниатюры, память, тестирование на телефоне.
-- **12.** Release-сборка (APK), финальная проверка всех фич.
+## Карта этапов
+0 окружение · 1 проект+навигация · 2 Room · 3 библиотека · 4 плеер ·
+5 детали+удаление · 6 добавление: метаданные · 7 скачивание+прогресс ·
+8 комментарии · 9 RU-дорожка · 10 настройки+обновление движка ·
+11 ошибки+MIUI · 12 полировка+финал
 
-## Окружение (настроено в Этапе 0)
-- JDK 17: `C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot` (JAVA_HOME задан на уровне пользователя)
-- Gradle 8.14: `C:\gradle\gradle-8.14` (в PATH; wrapper появится в Этапе 1)
-- Android SDK: `C:\Android` (ANDROID_HOME): platform-tools, platforms;android-34, build-tools;34.0.0, cmdline-tools/latest
-- adb: `C:\Android\platform-tools\adb.exe` (в PATH)
-- Тестовый телефон: Xiaomi 2112123AG (Redmi Note 11 Pro 5G, «psyche»), MIUI V816, **Android 13**, серийник adb `c985efb2`
-- Сборка: `cd /d F:\DDDDDDDDDDDDDDDDDDDDDDDDDDDDDD\LocalTube && gradlew.bat assembleDebug`
+## Правила
+- yt-dlp всегда вызывать с --no-playlist.
+- Прогресс и статус — только через DownloadTaskEntity, UI читает Flow из Room.
+- Конец каждого этапа: assembleDebug без ошибок + PROGRESS.md + git commit.
