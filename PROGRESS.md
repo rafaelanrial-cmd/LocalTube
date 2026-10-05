@@ -8,7 +8,7 @@
 
 ## Карта этапов (13)
 - [x] **Этап 0** — Окружение: JDK 17, Gradle, Android SDK, adb, git, телефон
-- [x] **Этап 1** — Проект + навигация: скелет Compose, wrapper 8.9, 4 экрана-заглушки (сборка ✓; установка на телефон ждёт MIUI-разрешения, см. ПРОБЛЕМА)
+- [x] **Этап 1** — Проект + навигация: скелет Compose, wrapper 8.9, 4 экрана-заглушки (сборка ✓, установка и запуск на телефоне ✓)
 - [ ] **Этап 2** — Room: VideoEntity, DownloadTaskEntity, CommentEntity
 - [ ] **Этап 3** — Библиотека: список скачанных видео
 - [ ] **Этап 4** — Плеер: Media3 ExoPlayer
@@ -21,17 +21,14 @@
 - [ ] **Этап 11** — Ошибки + MIUI
 - [ ] **Этап 12** — Полировка + финал
 
-### ПРОБЛЕМА: установка на телефон заблокирована MIUI (2026-10-05)
-- Ошибка: `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user` — повторилась 3 раза
-  (`gradlew.bat installDebug` ×2, прямой `adb install -r app-debug.apk` ×1).
-- Причина: MIUI (Xiaomi) по умолчанию запрещает установку APK через USB.
-- Уже пробовал: повторные установки, прямой adb install. С ПК обойти нельзя —
-  это системный переключатель безопасности Xiaomi.
-- **Нужно действие на телефоне:** Настройки → Дополнительные параметры → Для
-  разработчиков → включить «Установка по USB» (Install via USB). После этого:
-  `gradlew.bat installDebug`, затем `adb shell monkey -p com.localtube 1` и
-  `adb logcat -d *:E` (проверка FATAL). Сборка APK уже готова:
-  `app/build/outputs/apk/debug/app-debug.apk`.
+### Решено: установка на телефон (2026-10-05)
+- Было: `INSTALL_FAILED_USER_RESTRICTED` ×3 — MIUI просит подтверждение установки.
+- Решение: пользователь нажал «ОК» на телефоне при повторной установке →
+  `adb install -r app-debug.apk` = **Success**.
+- Запуск проверен: `adb shell monkey -p com.localtube 1` → MainActivity стартовала,
+  процесс (PID 29413) жив, в logcat **0 FATAL EXCEPTION / Fatal signal**
+  (шум AppSearchIcing — системная индексация MIUI, не ошибка приложения).
+- В будущих этапах: при `installDebug`/`adb install` ждать подтверждения на телефоне.
 
 ## Этап 1 — детали (2026-10-05)
 - [x] MASTER_PLAN.md переписан под новый концепт (оффлайн-YouTube, yt-dlp, Compose+Room);
@@ -48,7 +45,8 @@
       нижняя панель Библиотека/Загрузки/Добавить/Настройки; экраны — заглушки
       с русскими заголовками (ui/components/StubScreen.kt).
 - [x] `gradlew.bat assembleDebug` — BUILD SUCCESSFUL (JDK 17).
-- [ ] Установка на телефон + monkey + logcat — заблокировано MIUI (см. ПРОБЛЕМА выше).
+- [x] Установка на телефон (`adb install -r`, подтверждение «ОК» на телефоне) +
+      `monkey -p com.localtube 1` + `logcat`: приложение открылось, FATAL нет.
 
 ### Среда сборки (важно для следующих этапов)
 - Команда: `cd F:\...\LocalTube && JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot' ./gradlew.bat assembleDebug`
