@@ -40,4 +40,5 @@ Android-приложение **LocalTube** — локальный видеопл
 - Gradle 8.14: `C:\gradle\gradle-8.14` (в PATH; wrapper появится в Этапе 1)
 - Android SDK: `C:\Android` (ANDROID_HOME): platform-tools, platforms;android-34, build-tools;34.0.0, cmdline-tools/latest
 - adb: `C:\Android\platform-tools\adb.exe` (в PATH)
+- Тестовый телефон: Xiaomi 2112123AG (Redmi Note 11 Pro 5G, «psyche»), MIUI V816, **Android 13**, серийник adb `c985efb2`
 - Сборка: `cd /d F:\DDDDDDDDDDDDDDDDDDDDDDDDDDDDDD\LocalTube && gradlew.bat assembleDebug`
