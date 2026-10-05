@@ -51,6 +51,8 @@ private val topLevelRoutes = setOf(
 fun MainScreen(
     // TODO(Этап 12): УДАЛИТЬ — отладочный автопереход в плеер (MIUI блокирует input).
     debugPlayerId: StateFlow<Long?> = remember { MutableStateFlow<Long?>(null) },
+    // TODO(Этап 12): УДАЛИТЬ — отладочный автопереход в детали + автотест удаления (Этап 5).
+    debugDetailsId: StateFlow<Long?> = remember { MutableStateFlow<Long?>(null) },
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -61,6 +63,13 @@ fun MainScreen(
     LaunchedEffect(debugId) {
         val id = debugId ?: return@LaunchedEffect
         navController.navigate(Routes.player(id))
+    }
+
+    // TODO(Этап 12): УДАЛИТЬ — автопереход в детали по отладочному флагу (Этап 5).
+    val debugDetailsValue by debugDetailsId.collectAsState()
+    LaunchedEffect(debugDetailsValue) {
+        val id = debugDetailsValue ?: return@LaunchedEffect
+        navController.navigate(Routes.details(id))
     }
 
     Scaffold(

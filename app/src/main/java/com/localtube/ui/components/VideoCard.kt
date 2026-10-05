@@ -2,27 +2,20 @@ package com.localtube.ui.components
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.localtube.data.db.VideoEntity
-import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -88,32 +81,6 @@ fun VideoCard(
     }
 }
 
-/** Превью: файл через Coil. Если файла нет — заглушка с иконкой. */
-@Composable
-private fun Thumbnail(path: String, modifier: Modifier = Modifier) {
-    val file = path.takeIf { it.isNotBlank() }?.let(::File)?.takeIf { it.exists() }
-    if (file != null) {
-        AsyncImage(
-            model = file,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = modifier.fillMaxSize(),
-        )
-    } else {
-        Surface(
-            modifier = modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.PlayCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.padding(24.dp),
-            )
-        }
-    }
-}
-
 /** Строка метаданных: «мм:сс · dd.MM.yyyy» (пустые части не показываются). */
 private fun metaLine(video: VideoEntity): String = buildList {
     if (video.durationSec > 0) add(formatDuration(video.durationSec))
@@ -131,6 +98,10 @@ fun formatDuration(totalSeconds: Long): String {
         "%d:%02d".format(m, s)
     }
 }
+
+/** Байты → «X,X МБ» (одна цифра после запятой; разделитель — запятая). */
+fun formatSizeMb(bytes: Long): String =
+    "%.1f".format(bytes / 1_048_576.0).replace('.', ',')
 
 /** Секунды epoch → «dd.MM.yyyy» в часовом поясе устройства. */
 fun formatDate(epochSeconds: Long): String =

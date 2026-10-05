@@ -27,12 +27,23 @@
     <string name="empty_downloads">Активных загрузок нет</string>
     <string name="empty_add">Скоро: добавление видео по ссылке</string>
     <string name="empty_settings">Скоро: настройки приложения</string>
-    <string name="details_stub">Видео с id: %1$d</string>
     <string name="player_stub">Плеер для видео с id: %1$d</string>
 
     <!-- Плеер (Этап 4) -->
     <string name="player_file_not_found">Файл не найден</string>
 
-    <!-- Детали (Этап 4 — временная кнопка) -->
+    <!-- Детали (Этапы 4–5) -->
     <string name="details_watch">Смотреть</string>
+    <string name="details_label_date">Дата</string>
+    <string name="details_label_duration">Длительность</string>
+    <string name="details_label_size">Размер</string>
+    <string name="details_show_description">Показать описание</string>
+    <string name="details_hide_description">Свернуть описание</string>
+    <string name="details_comments">Комментарии</string>
+    <string name="details_comments_placeholder">Комментарии появятся после скачивания</string>
+    <string name="details_delete">Удалить</string>
+    <string name="details_delete_dialog_title">Удалить видео?</string>
+    <string name="details_delete_dialog_text">Освободится %1$s МБ.</string>
+    <string name="details_cancel">Отмена</string>
+    <string name="details_not_found">Видео не найдено</string>
 </resources>

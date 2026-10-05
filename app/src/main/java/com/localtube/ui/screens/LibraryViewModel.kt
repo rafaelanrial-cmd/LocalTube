@@ -53,12 +53,12 @@ class LibraryViewModel(private val repository: VideoRepository) : ViewModel() {
                 VideoEntity(
                     youtubeId = TEST_YOUTUBE_ID,
                     title = "Тестовое видео",
-                    description = "Временная запись для проверки библиотеки и плеера (Этапы 3–4).",
+                    description = "Временная запись для проверки библиотеки, плеера и деталей (Этапы 3–5).",
                     uploadDateEpoch = System.currentTimeMillis() / 1000L,
-                    durationSec = 33L, // реальная длительность ролика
+                    durationSec = 10L, // реальная длительность ролика
                     thumbnailPath = createTestThumbnail(context),
                     videoFilePath = File(root, "videos/test.mp4").absolutePath,
-                    sizeBytes = 7_750_868L,
+                    sizeBytes = 991_017L,
                     audioLangs = "en,ru",
                     hasRuTrack = true,
                 ),

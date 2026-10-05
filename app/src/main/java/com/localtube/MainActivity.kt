@@ -16,27 +16,45 @@ class MainActivity : ComponentActivity() {
     // TODO(Этап 12): УДАЛИТЬ — отладочный автопереход в плеер (MIUI блокирует input).
     private val debugPlayerId = MutableStateFlow<Long?>(null)
 
+    // TODO(Этап 12): УДАЛИТЬ — отладочный автопереход в детали + автотест удаления (Этап 5).
+    private val debugDetailsId = MutableStateFlow<Long?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         maybeStartDebugNavigation()
         setContent {
             LocalTubeTheme {
-                MainScreen(debugPlayerId = debugPlayerId)
+                MainScreen(
+                    debugPlayerId = debugPlayerId,
+                    // TODO(Этап 12): УДАЛИТЬ — параметр отладочного автоперехода (Этап 5).
+                    debugDetailsId = debugDetailsId,
+                )
             }
         }
     }
 
     /**
      * TODO(Этап 12): УДАЛИТЬ — если в externalFilesDir лежит файл-флаг,
-     * создаём тестовое видео и передаём его id для автоперехода в плеер.
+     * создаём тестовое видео и передаём его id для автоперехода (плеер или детали).
      */
     private fun maybeStartDebugNavigation() {
-        if (!DebugFlags.flagFile(this).exists()) return
-        lifecycleScope.launch {
-            val appContainer = LocalTubeApp.instance.container
-            val id = LibraryViewModel.createTestVideo(appContainer.context, appContainer.videoRepository)
-            debugPlayerId.value = id
+        val appContainer = LocalTubeApp.instance.container
+        if (DebugFlags.flagFile(this).exists()) {
+            lifecycleScope.launch {
+                debugPlayerId.value = LibraryViewModel.createTestVideo(
+                    appContainer.context, appContainer.videoRepository,
+                )
+            }
+            return
+        }
+        // TODO(Этап 12): УДАЛИТЬ — флаг деталей: автопереход + автотест удаления (Этап 5).
+        if (DebugFlags.detailsFlagFile(this).exists()) {
+            lifecycleScope.launch {
+                debugDetailsId.value = LibraryViewModel.createTestVideo(
+                    appContainer.context, appContainer.videoRepository,
+                )
+            }
         }
     }
 }
