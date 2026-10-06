@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.localtube.data.downloader.AudioChoice
 
 /**
  * Задача скачивания для [VideoEntity] (Этап 7).
@@ -28,6 +29,12 @@ data class DownloadTaskEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val videoId: Int,
     val url: String,
+    /** Ограничение высоты для -f "bv*[height<=X]+ba/b" (Этап 7). */
+    val qualityHeight: Int = 720,
+    /** Выбор аудиодорожки; RU реально подставляется в Этапе 9. */
+    val audioChoice: AudioChoice = AudioChoice.ORIGINAL,
+    /** Скачивать комментарии (реализуется с Этапа 8). */
+    val withComments: Boolean = false,
     val status: DownloadStatus = DownloadStatus.QUEUED,
     val progressPercent: Int = 0,
     val speedBps: Long = 0L,
@@ -35,5 +42,8 @@ data class DownloadTaskEntity(
     val videoOk: Boolean = false,
     val thumbOk: Boolean = false,
     val commentsOk: Boolean = false,
+    /** Прошлые значения колбэка для расчёта скорости по дельте (Этап 7). */
+    val lastBytes: Long = 0L,
+    val lastTimeMs: Long = 0L,
     val errorMsg: String? = null,
 )

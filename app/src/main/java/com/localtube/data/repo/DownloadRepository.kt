@@ -4,6 +4,7 @@ import com.localtube.data.db.CommentDao
 import com.localtube.data.db.CommentEntity
 import com.localtube.data.db.DownloadTaskDao
 import com.localtube.data.db.DownloadTaskEntity
+import com.localtube.data.db.DownloadTaskRow
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -29,6 +30,18 @@ class DownloadRepository(
 
     /** Обновление прогресса/статуса (замена всей строки). */
     suspend fun updateTask(task: DownloadTaskEntity) = taskDao.update(task)
+
+    /** Задачи с названием видео для экрана «Загрузки» (Этап 7). */
+    fun observeTaskRows(): Flow<List<DownloadTaskRow>> = taskDao.getRows()
+
+    /** Первая задача в очереди — её берёт DownloadService. */
+    suspend fun getNextQueued(): DownloadTaskEntity? = taskDao.getNextQueued()
+
+    /** Сброс «осиротевших» RUNNING в QUEUED после перезапуска приложения. */
+    suspend fun resetRunningToQueued() = taskDao.resetRunningToQueued()
+
+    /** Есть ли задачи в очереди? */
+    suspend fun hasQueued(): Boolean = taskDao.hasQueued()
 
     // --- Комментарии ---
 

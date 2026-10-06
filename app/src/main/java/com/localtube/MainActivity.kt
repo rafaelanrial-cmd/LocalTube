@@ -1,17 +1,24 @@
 package com.localtube
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
+import com.localtube.service.DownloadService
 import com.localtube.ui.navigation.MainScreen
-import com.localtube.ui.screens.LibraryViewModel
 import com.localtube.ui.theme.LocalTubeTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    private companion object {
+        const val NOTIF_PERMISSION_REQUEST_CODE = 71
+    }
 
     // TODO(Этап 12): УДАЛИТЬ — отладочный автопереход в плеер (MIUI блокирует input).
     private val debugPlayerId = MutableStateFlow<Long?>(null)
@@ -25,6 +32,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        maybeRequestNotificationPermission() // Этап 7: уведомление о скачивании
         maybeStartDebugNavigation()
         setContent {
             LocalTubeTheme {
@@ -40,31 +48,47 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * Этап 7: если MIUI убил сервис скачиваний, пока процесс приложения жив,
+     * возвращаем его к жизни при возврате пользователя в приложение
+     * (onStartCommand идемпотентен; осиротевшие RUNNING-задачи сервис
+     * вернёт в очередь сам).
+     */
+    override fun onResume() {
+        super.onResume()
+        DownloadService.start(this)
+    }
+
+    /**
+     * Этап 7: разрешение на уведомления (Android 13+), запрашивается при
+     * первом старте; без него уведомление о скачивании не будет видно.
+     */
+    private fun maybeRequestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+            == PackageManager.PERMISSION_GRANTED
+        ) return
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIF_PERMISSION_REQUEST_CODE)
+    }
+
+    /**
      * TODO(Этап 12): УДАЛИТЬ — если в externalFilesDir лежит файл-флаг,
-     * создаём тестовое видео и передаём его id для автоперехода (плеер или детали).
+     * автопереход в плеер / на экран «Добавить» (механизм тестового видео удалён в Этапе 7).
      */
     private fun maybeStartDebugNavigation() {
         val appContainer = LocalTubeApp.instance.container
+        // TODO(Этап 12): УДАЛИТЬ — флаг «плеер по youtubeId»: открыть плеер скачанного видео (автотест Этапа 7).
+        val playerYtid = DebugFlags.readPlayerYtid(this)
+        if (playerYtid != null) {
+            lifecycleScope.launch {
+                val video = appContainer.videoRepository.getByYoutubeId(playerYtid)
+                if (video != null) debugPlayerId.value = video.id.toLong()
+            }
+            return
+        }
         // TODO(Этап 12): УДАЛИТЬ — флаг «добавить»: ссылка из файла, автопереход в «Добавить».
         if (DebugFlags.addUrlFlagFile(this).exists()) {
             debugAddUrl.value = DebugFlags.readAddUrlFlag(this)
             return
-        }
-        if (DebugFlags.flagFile(this).exists()) {
-            lifecycleScope.launch {
-                debugPlayerId.value = LibraryViewModel.createTestVideo(
-                    appContainer.context, appContainer.videoRepository,
-                )
-            }
-            return
-        }
-        // TODO(Этап 12): УДАЛИТЬ — флаг деталей: автопереход + автотест удаления (Этап 5).
-        if (DebugFlags.detailsFlagFile(this).exists()) {
-            lifecycleScope.launch {
-                debugDetailsId.value = LibraryViewModel.createTestVideo(
-                    appContainer.context, appContainer.videoRepository,
-                )
-            }
         }
     }
 }

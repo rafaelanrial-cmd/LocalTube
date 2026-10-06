@@ -28,6 +28,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,6 +40,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import com.localtube.R
+import com.localtube.data.downloader.AudioChoice
 import com.localtube.ui.components.AddVideoCard
 import com.localtube.ui.navigation.Routes
 import kotlinx.coroutines.launch
@@ -61,7 +63,21 @@ fun AddScreen(
     val qualityHeight by viewModel.qualityHeight.collectAsState()
     val withComments by viewModel.withComments.collectAsState()
     val downloading by viewModel.downloading.collectAsState()
+    // TODO(Этап 12): УДАЛИТЬ — автоскачивание: автопереход на «Загрузки».
+    val autoDownloaded by viewModel.autoDownloaded.collectAsState()
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(autoDownloaded) {
+        if (autoDownloaded) {
+            navController.navigate(Routes.DOWNLOADS) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
 
     Column(
         modifier = Modifier

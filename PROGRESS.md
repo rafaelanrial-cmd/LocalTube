@@ -14,7 +14,7 @@
 - [x] **Этап 4** — Плеер: Media3 ExoPlayer (сборка ✓, проверка на телефоне ✓: play/pause/seek + пауза при уходе в фон и возобновление)
 - [x] **Этап 5** — Детали + удаление (сборка ✓, проверка на телефоне ✓: автотест удаления, du до/после, карточка исчезла)
 - [x] **Этап 6** — Добавление: метаданные (сборка ✓, проверка на телефоне по реальной ссылке ✓: FETCH_OK + карточка с верными данными)
-- [ ] **Этап 7** — Скачивание + прогресс
+- [x] **Этап 7** — Скачивание + прогресс (сборка ✓, проверка на телефоне ✓: реальный ролик DONE 100% с прогрессом/скоростью, оффлайн-плеер ✓, отмена ✓; 403 решён — клиент android + ByeDPI)
 - [ ] **Этап 8** — Комментарии
 - [ ] **Этап 9** — RU-дорожка
 - [ ] **Этап 10** — Настройки + обновление движка
@@ -91,6 +91,89 @@
   для оффлайн-сайтов пригодится.
 - MIUI агрессивно убивает фоновые процессы: приложение может закрыться через ~1–2 минуты после
   запуска — для скриншотов/дампов запускать и снимать быстро (окно ~30 с после FETCH_OK).
+
+## Этап 7 — детали (2026-10-06)
+- [x] **DownloadService** (`service/DownloadService.kt`, foreground, `foregroundServiceType="dataSync"`):
+      разрешения FOREGROUND_SERVICE, FOREGROUND_SERVICE_DATA_SYNC, POST_NOTIFICATIONS;
+      запрос права на уведомления при первом старте (MainActivity.maybeRequestNotificationPermission,
+      Android 13+). Очередь: QUEUED-задачи по одной FIFO (`getNextQueued`); прогресс в БД ~каждые
+      400 мс; уведомление обновляется не чаще раза в секунду.
+- [x] **VideoDownloader** (`data/downloader/VideoDownloader.kt`): превью
+      `--skip-download --write-thumbnail --convert-thumbnails jpg -o thumbs/{id}.jpg`; видео+аудио
+      `-f "bv*[height<=X]+ba/b" --merge-output-format mp4 -o videos/{id}.mp4`, ffmpeg из состава
+      библиотеки. Прогресс: ProgressHolder (колбэк progress/ETA + «всего байт» из строки
+      «of X MiB»), скорость = дельта байты/время, lastBytes/lastTimeMs — в DownloadTaskEntity;
+      всё пишется в БД, UI читает Flow.
+- [x] **Отмена**: cancelledFlag + `YoutubeDL.destroyProcessById`, удаление partial-файлов
+      (.part/.f*/.ytdl и превью), статус CANCELED. Проверено на телефоне: задача CANCELED,
+      файлы удалены (2026-10-06).
+- [x] **DownloadsScreen** (`ui/screens/DownloadsScreen.kt`): активные задачи — карточка с
+      названием, LinearProgressIndicator, процентами, скоростью МБ/с, ETA и чек-листом
+      ☑ метаданные ☑ превью ▶ видео % ☐ комментарии (комментарии — Этап 8), кнопка «Отмена»;
+      выполненные — снизу, FAILED — с текстом ошибки.
+- [x] **DONE**: пути файлов + sizeBytes записаны в VideoEntity — видео появляется в библиотеке.
+      Проверено: Rick Astley dQw4w9WgXcQ DONE, 21 МБ, mp4 лежит в videos/.
+- [x] Тестовая кнопка Этапа 3 удалена: `TestData.kt` удалён, ветки debug-навигации с
+      addTestVideo/createTestThumbnail вычищены из MainActivity; БД очищена (тестовые строки 4–6
+      удалены, остался только Rick Astley + его DONE-задача).
+
+### Финальная проверка и «прод» (2026-10-06) — этап завершён
+- [x] **Осиротевшие задачи** (MIUI убивает сервис, пока процесс приложения жив):
+      `DownloadService.onStartCommand` вызывает `resetRunningToQueued()` перед `runQueue` —
+      RUNNING-задачи мёртвого экземпляра возвращаются в очередь; `MainActivity.onResume`
+      заново запускает сервис (`DownloadService.start`, идемпотентен), если MIUI его убил.
+      Проверено: сирота task 10 (RUNNING/0%) после перезапуска приложения дошла до DONE.
+- [x] **VideoDownloader**: `catch (e: CancellationException) { throw e }` — при убийстве
+      сервиса во время скачивания не пишем FAILED; задачу в очередь вернёт новый экземпляр
+      сервиса.
+- [x] **Дефолтный клиент tv → android** (`playerClient()`): при работающем ByeDPI именно
+      `android` стабильно скачивает без 403 (task 10); default/tv/ios/mweb/android_vr/
+      tv_embedded на текущем выходном IP блокируются. Файл-оверрайд debug_player_client с
+      телефона удалён — работает «из коробки». Если 403 вернётся: перезапустить ByeDPI
+      (новый IP) и/или перебрать клиентов через debug-файл.
+- [x] **Критерий этапа** (реальная ссылка, реальное скачивание): task 10 `Id5RNRX30Gk`
+      («Elon Just Admitted Tesla's Last Robotaxi Problem») — DONE, 100%; файл
+      `videos/Id5RNRX30Gk.mp4` = 27 240 419 байт, валидный контейнер (`ftyp mp42`, атом
+      `moov`). Прогресс/скорость/ETA писались в БД во время скачивания (UI читает Flow),
+      уведомление обновлялось ≤1 раза/с.
+- [x] **Оффлайн-воспроизведение**: флаг debug_player_ytid=Id5RNRX30Gk → приложение само
+      открыло плеер; скриншот: 35 693 уникальных цвета в области видео (заглушка дала бы
+      <50), средняя яркость 146 — реальный кадр из локального файла. FATAL/AndroidRuntime —
+      нет. Плеер читает файл с диска — интернет не нужен.
+- [x] **Отмена**: проверена ранее в тот же день — задача CANCELED, partial-файлы
+      (.part/.f*/.ytdl + превью) удалены.
+- [x] **Wi-Fi не переключаем**: в коде приложения нет WifiManager/setWifiEnabled (проверено
+      grep'ом) — ByeDPI работает фоном, скачивание идёт через него «как обычно».
+- [x] Очистка после тестов: флаг debug_player_ytid, скриншот lt_player.png и отладочные
+      дампы debug_ytdlp_*.txt удалены с телефона.
+
+### ПРОБЛЕМА: HTTP 403 при скачивании видео — РЕШЁНО (2026-10-06)
+- **ВАЖНЫЙ ФАКТ (сообщил пользователь): YouTube в этой стране ЗАБЛОКИРОВАН на уровне
+      провайдера/DPI. Без VPN приложение ByeDPI (`io.github.romanvht.byedpi`) YouTube НЕ
+      открывается вообще — весь доступ к YouTube идёт через ByeDPI. Не отключать ByeDPI
+      «для теста»: без него скачивание невозможно.
+- **Ошибка**: `ERROR: unable to download video data: HTTP Error 403: Forbidden` — форматы
+      извлекаются нормально, но CDN (googlevideo.com) не отдаёт поток. Превью
+      (img.youtube.com) скачивается без проблем (code=0).
+- **Когда**: 5+ попыток скачать RgKAFK5djSk упали с 403 примерно через час после успешного
+      скачивания dQw4w9WgXcQ (task 1 DONE). Причина: выходной IP ByeDPI, через который шли
+      все тестовые запросы, получил временную анти-абьюз-разметку YouTube.
+- **Что пробовал и не помогло** (все попытки — при работающем ByeDPI):
+  - ожидание ~20 минут;
+  - player_client `tv` → «The page needs to be reloaded» (бот-чек watch-страницы);
+  - `ios` → нужен GVS PO Token, https-форматы отбрасываются («Only images are available»);
+  - `mweb` → JS challenge failed;
+  - `android_vr` → тот же 403;
+  - `tv_embedded` → «YouTube is no longer supported in this application or device»;
+  - попытка без ByeDPI (VPN выключен) — бессмысленна: YouTube в стране заблокирован.
+- **РЕШЕНИЕ (проверено на task 10)**: клиент `android` скачивает без 403 при работающем
+  ByeDPI; дефолт в коде теперь `android`. Если 403 вернётся — перезапустить ByeDPI для
+  нового выходного IP (`am force-stop io.github.romanvht.byedpi` + `am start
+  io.github.romanvht.byedpi/.activities.MainActivity`) и/или перебрать клиентов через файл
+  debug_player_client (метод `playerClient()`, TODO(Этап 12)).
+- **Вывод для Этапа 11 (ошибки + MIUI)**: ошибка «403 Forbidden» в errorMsg задачи — это
+  не баг приложения, а YouTube/сеть. Показывать пользователю понятный текст: «YouTube
+  временно ограничил доступ с этой сети; попробуйте позже или перезапустите VPN».
 
 ## Этап 5 — детали (2026-10-06)
 - [x] **DetailsScreen** (`ui/screens/DetailsScreen.kt`, заглушка удалена, 299 строк): по `id` из

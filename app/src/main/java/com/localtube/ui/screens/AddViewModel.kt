@@ -8,10 +8,12 @@ import com.localtube.DebugFlags
 import com.localtube.LocalTubeApp
 import com.localtube.data.db.DownloadTaskEntity
 import com.localtube.data.db.VideoEntity
+import com.localtube.data.downloader.AudioChoice
 import com.localtube.data.downloader.VideoInfoData
 import com.localtube.data.downloader.YtDlpManager
 import com.localtube.data.repo.DownloadRepository
 import com.localtube.data.repo.VideoRepository
+import com.localtube.service.DownloadService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,13 +34,10 @@ sealed interface AddUiState {
     data object CheckFailed : AddUiState
 }
 
-/** Выбор аудиодорожки (Этап 6; используется при скачивании в Этапе 7). */
-enum class AudioChoice { ORIGINAL, RU, BOTH }
-
 /**
- * ViewModel экрана «Добавить» (Этап 6): валидация ссылки, получение метаданных
+ * ViewModel экрана «Добавить» (Этапы 6–7): валидация ссылки, получение метаданных
  * через yt-dlp, опции скачивания. Кнопка «Скачать» создаёт VideoEntity +
- * DownloadTask(QUEUED); само скачивание — Этап 7.
+ * DownloadTask(QUEUED) с выбранными опциями и запускает DownloadService.
  */
 class AddViewModel(
     private val videoRepository: VideoRepository,
@@ -69,6 +68,10 @@ class AddViewModel(
     private val _downloading = MutableStateFlow(false)
     val downloading: StateFlow<Boolean> = _downloading.asStateFlow()
 
+    // TODO(Этап 12): УДАЛИТЬ — автоскачивание сработало (экран сам уходит на «Загрузки»).
+    private val _autoDownloaded = MutableStateFlow(false)
+    val autoDownloaded: StateFlow<Boolean> = _autoDownloaded.asStateFlow()
+
     init {
         // TODO(Этап 12): УДАЛИТЬ — автопереход: подставлена ссылка и сразу проверка.
         if (autoCheckUrl != null) {
@@ -98,6 +101,12 @@ class AddViewModel(
                 _qualityHeight.value = QUALITY_720
                 _withComments.value = true
                 _uiState.value = AddUiState.Checked(info)
+                // TODO(Этап 12): УДАЛИТЬ — автоскачивание (автотест Этапа 7).
+                val ctx = LocalTubeApp.instance.container.context
+                if (DebugFlags.autoDownloadFlagFile(ctx).exists()) {
+                    debugLog("AUTO_DOWNLOAD flag present")
+                    if (download()) _autoDownloaded.value = true
+                }
             } catch (e: Exception) {
                 debugLog("FETCH_FAIL url=$url error=${e.message}")
                 _uiState.value = AddUiState.CheckFailed
@@ -145,8 +154,16 @@ class AddViewModel(
                 )
             )
             downloadRepository.insertTask(
-                DownloadTaskEntity(videoId = videoId.toInt(), url = _urlText.value.trim())
+                DownloadTaskEntity(
+                    videoId = videoId.toInt(),
+                    url = _urlText.value.trim(),
+                    qualityHeight = _qualityHeight.value,
+                    audioChoice = _audioChoice.value,
+                    withComments = _withComments.value,
+                ),
             )
+            // Этап 7: сервис берёт задачу из очереди (FIFO) и скачивает.
+            DownloadService.start(LocalTubeApp.instance.container.context)
             debugLog(
                 "TASK_QUEUED videoId=$videoId audio=${_audioChoice.value} " +
                     "quality=${_qualityHeight.value} comments=${_withComments.value}"

@@ -4,6 +4,11 @@
     <!-- Скачивание видео и метаданных (Этапы 6+) -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Foreground-сервис скачиваний (Этап 7) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".LocalTubeApp"
         android:allowBackup="true"
@@ -21,6 +26,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Сервис скачиваний: берёт задачи QUEUED по одной (Этап 7). -->
+        <service
+            android:name=".service.DownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 
 </manifest>

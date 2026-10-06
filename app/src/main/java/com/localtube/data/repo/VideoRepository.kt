@@ -15,8 +15,14 @@ class VideoRepository(private val dao: VideoDao) {
 
     suspend fun getById(id: Int): VideoEntity? = dao.getById(id)
 
+    /** По youtubeId; null, если нет. */
+    suspend fun getByYoutubeId(youtubeId: String): VideoEntity? = dao.getByYoutubeId(youtubeId)
+
     /** Возвращает ключ вставленной строки. */
     suspend fun insert(video: VideoEntity): Long = dao.insert(video)
+
+    /** Этап 7: записать пути файлов и размер после скачивания. */
+    suspend fun update(video: VideoEntity) = dao.update(video)
 
     /** Удаляет видео; задачи скачивания и комментарии уходят CASCADE. */
     suspend fun delete(video: VideoEntity) = dao.delete(video)

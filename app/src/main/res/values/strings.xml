@@ -21,7 +21,6 @@
     <!-- Библиотека (Этап 3) -->
     <string name="empty_library">Здесь появятся скачанные видео</string>
     <string name="library_add_video">Добавить видео</string>
-    <string name="library_add_test_video">+ тестовое видео</string>
 
     <!-- Сообщения-заглушки -->
     <string name="empty_downloads">Активных загрузок нет</string>
@@ -60,4 +59,23 @@
     <string name="add_quality_1080">1080p</string>
     <string name="add_comments_label">Комментарии</string>
     <string name="add_download">Скачать</string>
+
+    <!-- Загрузки (Этап 7) -->
+    <string name="dl_section_active">В работе</string>
+    <string name="dl_section_done">Завершено</string>
+    <string name="dl_queued">В очереди…</string>
+    <string name="dl_speed">%1$s МБ/с</string>
+    <string name="dl_eta_sec">~ %1$d с</string>
+    <string name="dl_eta_min">~ %1$d:%2$02d</string>
+    <string name="dl_failed">Ошибка скачивания</string>
+    <string name="dl_canceled">Отменено</string>
+    <string name="dl_cancel">Отмена</string>
+    <string name="dl_meta">метаданные</string>
+    <string name="dl_thumb">превью</string>
+    <string name="dl_video">видео</string>
+    <string name="dl_video_progress">%1$s %2$d%%</string>
+    <string name="dl_comments">комментарии</string>
+    <string name="dl_error_no_video">Видео было удалено</string>
+    <string name="dl_notif_channel">Скачивания</string>
+    <string name="dl_notif_starting">Подготовка скачивания…</string>
 </resources>

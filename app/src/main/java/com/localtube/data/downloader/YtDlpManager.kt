@@ -46,6 +46,12 @@ class YtDlpManager(appContext: Context) {
         }
     }
 
+    /**
+     * Публичная обёртка над [ensureInit] (Этап 7): VideoDownloader вызывает
+     * её перед запуском yt-dlp — скачивание стартует только после инициализации.
+     */
+    suspend fun ensureInitialized() = ensureInit()
+
     /** Ждёт результат [startInit]; при неудаче бросает [YtDlpException]. */
     private suspend fun ensureInit() {
         val deferred =

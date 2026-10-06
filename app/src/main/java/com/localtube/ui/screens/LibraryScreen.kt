@@ -14,7 +14,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -40,7 +39,6 @@ fun LibraryScreen(
     if (videos.isEmpty()) {
         EmptyLibraryContent(
             onGoToAdd = { navController.navigate(Routes.ADD) },
-            onAddTestVideo = viewModel::addTestVideo, // TODO(Этап 7): УДАЛИТЬ
         )
     } else {
         LazyColumn(
@@ -64,7 +62,6 @@ fun LibraryScreen(
 @Composable
 private fun EmptyLibraryContent(
     onGoToAdd: () -> Unit,
-    onAddTestVideo: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -81,13 +78,6 @@ private fun EmptyLibraryContent(
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.library_add_video))
-        }
-        // TODO(Этап 7): УДАЛИТЬ — временная кнопка тестового видео.
-        OutlinedButton(
-            onClick = onAddTestVideo,
-            modifier = Modifier.padding(top = 12.dp),
-        ) {
-            Text(stringResource(R.string.library_add_test_video))
         }
     }
 }
