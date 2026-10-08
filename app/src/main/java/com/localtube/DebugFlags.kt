@@ -1,6 +1,7 @@
 package com.localtube
 
 import android.content.Context
+import com.localtube.data.downloader.AudioChoice
 import java.io.File
 
 /**
@@ -18,14 +19,37 @@ import java.io.File
  * - [CANCEL_AT_FLAG_FILE_NAME] — содержимое = процент: задача в работе
  *   автоматически отменяется, когда прогресс достигает его (автотест Этапа 7);
  * - [PLAYER_YTID_FLAG_FILE_NAME] — содержимое = youtubeId: автопереход в плеер
- *   скачанного видео по id из базы (автотест оффлайн-воспроизведения, Этап 7).
+ *   скачанного видео по id из базы (автотест оффлайн-воспроизведения, Этап 7);
+ * - [DETAILS_YTID_FLAG_FILE_NAME] — содержимое = youtubeId: автопереход в детали
+ *   скачанного видео по id из базы (автотест комментариев офлайн, Этап 8);
+ * - [AUDIO_CHOICE_FLAG_FILE_NAME] — содержимое = ORIGINAL|RU|BOTH: выбор аудио
+ *   для автоскачивания (автотест Этапа 9);
+ * - [AUDIO_SWITCH_FLAG_FILE_NAME] — в плеере: лог AUDIO-дорожек + переключение
+ *   на RU и обратно без перезапуска (автотест Этапа 9);
+ * - [NO_COMMENTS_FLAG_FILE_NAME] — автоскачивание идёт без комментариев
+ *   (Этап 8 пока не проверяется; автотест Этапа 9 изолирован от него).
  * Маркеры — в logcat под тегом [TAG]. Флаги: adb shell touch
  * /sdcard/Android/data/com.localtube/files/<имя флага>.
+ *
+ * Флаги автоперехода при запуске (details_ytid, player_ytid, add_url) —
+ * ОДНОРАЗОВЫЕ: приложение удаляет файл сразу после чтения, поэтому забытый
+ * флаг не перехватывает следующий запуск (исправление бага 2026-10-08:
+ * приложение само улетало в «Добавить» и грузило ссылку). Маркеры при этом
+ * работают через [sessionActive], а не по существованию файла.
  */
 object DebugFlags {
 
     /** Тег маркеров автотеста в logcat. */
     const val TAG = "LocalTubeDebug"
+
+    /**
+     * True, пока в этом процессе работает отладочный автосценарий: MainActivity
+     * ставит при потреблении launch-флага (сам файл при этом удаляется).
+     * По нему гейтятся лог-маркеры и дамп-файлы — они должны жить всё время
+     * сценария, хотя флаг-файл уже удалён.
+     */
+    @Volatile
+    var sessionActive = false
 
     /** Имя файла-флага: автопереход в плеер + сценарий play/pause/seek (Этап 4). */
     const val FLAG_FILE_NAME = "debug_goto_player"
@@ -84,6 +108,62 @@ object DebugFlags {
     /** youtubeId для автоперехода в плеер; null, если файла нет или он пуст. */
     fun readPlayerYtid(context: Context): String? {
         val file = playerYtidFlagFile(context)
+        if (!file.exists()) return null
+        return file.readText().trim().ifEmpty { null }
+    }
+
+    /** Имя файла-флага: автопереход в детали по youtubeId; содержимое — id (Этап 8). */
+    const val DETAILS_YTID_FLAG_FILE_NAME = "debug_details_ytid"
+
+    /** Файл-флаг автоперехода в детали по youtubeId (Этап 8). */
+    fun detailsYtidFlagFile(context: Context): File =
+        File(context.getExternalFilesDir(null) ?: context.filesDir, DETAILS_YTID_FLAG_FILE_NAME)
+
+    /** youtubeId для автоперехода в детали; null, если файла нет или он пуст. */
+    fun readDetailsYtid(context: Context): String? {
+        val file = detailsYtidFlagFile(context)
+        if (!file.exists()) return null
+        return file.readText().trim().ifEmpty { null }
+    }
+
+    /** Имя файла-флага: выбор аудио для автоскачивания; ORIGINAL|RU|BOTH (Этап 9). */
+    const val AUDIO_CHOICE_FLAG_FILE_NAME = "debug_audio_choice"
+
+    /** Файл-флаг выбора аудио (Этап 9). */
+    fun audioChoiceFlagFile(context: Context): File =
+        File(context.getExternalFilesDir(null) ?: context.filesDir, AUDIO_CHOICE_FLAG_FILE_NAME)
+
+    /** Выбор аудио из файла-флага; null, если файла нет или значение не распознано. */
+    fun readAudioChoice(context: Context): AudioChoice? {
+        val file = audioChoiceFlagFile(context)
+        if (!file.exists()) return null
+        return runCatching { AudioChoice.valueOf(file.readText().trim().uppercase()) }.getOrNull()
+    }
+
+    /** Имя файла-флага: автотест переключения аудиодорожек в плеере (Этап 9). */
+    const val AUDIO_SWITCH_FLAG_FILE_NAME = "debug_audio_switch"
+
+    /** Файл-флаг автотеста переключения дорожек (Этап 9); достаточно создать. */
+    fun audioSwitchFlagFile(context: Context): File =
+        File(context.getExternalFilesDir(null) ?: context.filesDir, AUDIO_SWITCH_FLAG_FILE_NAME)
+
+    /** Имя файла-флага: автоскачивание без комментариев (Этап 8 пока не делаем). */
+    const val NO_COMMENTS_FLAG_FILE_NAME = "debug_no_comments"
+
+    /** Файл-флага «без комментариев» (автотест Этапа 9); достаточно создать. */
+    fun noCommentsFlagFile(context: Context): File =
+        File(context.getExternalFilesDir(null) ?: context.filesDir, NO_COMMENTS_FLAG_FILE_NAME)
+
+    /** Имя файла-флага: клиент плеера YouTube для yt-dlp; содержимое — имя клиента. */
+    const val PLAYER_CLIENT_FLAG_FILE_NAME = "debug_player_client"
+
+    /** Файл-флага клиента (автотест Этапа 9: подбор рабочего клиента). */
+    fun playerClientFlagFile(context: Context): File =
+        File(context.getExternalFilesDir(null) ?: context.filesDir, PLAYER_CLIENT_FLAG_FILE_NAME)
+
+    /** Клиент из файла-флага; null, если файла нет или он пуст. */
+    fun readPlayerClient(context: Context): String? {
+        val file = playerClientFlagFile(context)
         if (!file.exists()) return null
         return file.readText().trim().ifEmpty { null }
     }

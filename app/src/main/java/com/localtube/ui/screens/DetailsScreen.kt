@@ -49,6 +49,7 @@ import androidx.navigation.NavHostController
 import com.localtube.DebugFlags
 import com.localtube.R
 import com.localtube.data.db.VideoEntity
+import com.localtube.ui.components.CommentsSection
 import com.localtube.ui.components.Thumbnail
 import com.localtube.ui.components.formatDate
 import com.localtube.ui.components.formatDuration
@@ -57,7 +58,7 @@ import com.localtube.ui.navigation.Routes
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Экран «Детали видео» (Этап 5): превью, метаданные, описание, комментарии-заглушка, удаление. */
+/** Экран «Детали видео» (Этап 5): превью, метаданные, описание, комментарии (Этап 8), удаление. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailsScreen(
@@ -67,6 +68,8 @@ fun DetailsScreen(
     viewModel: DetailsViewModel = viewModel(factory = DetailsViewModel.factory(id)),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    // Этап 8: комментарии из Room (Flow), читаются офлайн.
+    val comments by viewModel.comments.collectAsState()
     val scope = rememberCoroutineScope()
 
     Scaffold(
@@ -97,6 +100,7 @@ fun DetailsScreen(
                 DetailsContent(
                     video = state.video,
                     deleting = state.deleting,
+                    comments = comments,
                     onWatch = { navController.navigate(Routes.player(id)) },
                     onDeleteConfirmed = {
                         scope.launch {
@@ -115,6 +119,7 @@ fun DetailsScreen(
 private fun DetailsContent(
     video: VideoEntity,
     deleting: Boolean,
+    comments: List<CommentNode>,
     onWatch: () -> Unit,
     onDeleteConfirmed: () -> Unit,
     modifier: Modifier = Modifier,
@@ -190,12 +195,7 @@ private fun DetailsContent(
 
         Spacer(Modifier.height(20.dp))
         Text(stringResource(R.string.details_comments), style = MaterialTheme.typography.titleMedium)
-        Text(
-            stringResource(R.string.details_comments_placeholder),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp),
-        )
+        CommentsSection(comments = comments, modifier = Modifier.padding(top = 8.dp))
 
         Spacer(Modifier.height(24.dp))
     }

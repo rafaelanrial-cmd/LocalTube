@@ -44,7 +44,9 @@ class AddViewModel(
     private val downloadRepository: DownloadRepository,
     private val ytDlpManager: YtDlpManager,
     // TODO(Этап 12): УДАЛИТЬ — отладочная автопроверка ссылки (MIUI блокирует input).
-    autoCheckUrl: String? = null,
+    // Не null только в автосценарии (ссылка подставлена из файла-флага при запуске);
+    // по нему же разрешено автоскачивание — при ручной проверке оно не срабатывает.
+    private val autoCheckUrl: String? = null,
 ) : ViewModel() {
 
     private val _urlText = MutableStateFlow("")
@@ -102,9 +104,31 @@ class AddViewModel(
                 _withComments.value = true
                 _uiState.value = AddUiState.Checked(info)
                 // TODO(Этап 12): УДАЛИТЬ — автоскачивание (автотест Этапа 7).
+                // Только в автосценарии (autoCheckUrl != null), никогда при ручной
+                // «Проверить»: даже забытые флаги не могут запустить скачку без
+                // нажатия «Скачать» (исправление бага 2026-10-08). Флаги одноразовые —
+                // удаляются после срабатывания.
                 val ctx = LocalTubeApp.instance.container.context
-                if (DebugFlags.autoDownloadFlagFile(ctx).exists()) {
+                if (autoCheckUrl != null && DebugFlags.autoDownloadFlagFile(ctx).exists()) {
                     debugLog("AUTO_DOWNLOAD flag present")
+                    // TODO(Этап 12): УДАЛИТЬ — без комментариев: код Этапа 8 пока
+                    // не проверяется на телефоне, автотест Этапа 9 идёт без него.
+                    if (DebugFlags.noCommentsFlagFile(ctx).exists()) {
+                        _withComments.value = false
+                        debugLog("NO_COMMENTS flag present")
+                    }
+                    // TODO(Этап 12): УДАЛИТЬ — выбор аудио из файла-флага (автотест Этапа 9).
+                    DebugFlags.readAudioChoice(ctx)?.let { choice ->
+                        if (choice == AudioChoice.ORIGINAL || info.hasRuTrack) {
+                            _audioChoice.value = choice
+                            debugLog("AUDIO_CHOICE=$choice")
+                        } else {
+                            debugLog("AUDIO_CHOICE=$choice ignored: no ru track")
+                        }
+                    }
+                    DebugFlags.autoDownloadFlagFile(ctx).delete()
+                    DebugFlags.noCommentsFlagFile(ctx).delete()
+                    DebugFlags.audioChoiceFlagFile(ctx).delete()
                     if (download()) _autoDownloaded.value = true
                 }
             } catch (e: Exception) {
@@ -115,7 +139,8 @@ class AddViewModel(
     }
 
     fun onAudioSelected(choice: AudioChoice) {
-        if (choice == AudioChoice.RU && !hasRu()) return // «Русская» видна только если ru есть
+        // Этап 9: RU/обе дорожки валидны только при наличии русской дорожки.
+        if (choice != AudioChoice.ORIGINAL && !hasRu()) return
         _audioChoice.value = choice
     }
 
@@ -176,8 +201,8 @@ class AddViewModel(
 
     // TODO(Этап 12): УДАЛИТЬ — лог-маркеры под тегом LocalTubeDebug при включённом флаге.
     private fun debugLog(message: String) {
-        val context = LocalTubeApp.instance.container.context
-        if (DebugFlags.addUrlFlagFile(context).exists()) {
+        // Флаг-файл удаляется при запуске (одноразовый), поэтому гейт — по сессии.
+        if (DebugFlags.sessionActive) {
             Log.d(DebugFlags.TAG, message)
         }
     }

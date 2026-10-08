@@ -19,8 +19,11 @@ import java.io.File
 /**
  * Исполнитель одной задачи скачивания (Этап 7):
  * 1) превью: `--write-thumbnail --convert-thumbnails jpg` → thumbs/{youtubeId}.jpg;
- * 2) видео+аудио: `-f "bv*[height<=X]+ba/b"`, объединение ffmpeg из состава
- *    библиотеки в videos/{youtubeId}.mp4 (RU-дорожка — Этап 9).
+ * 2) видео+аудио (Этап 9): формат зависит от AudioChoice — ORIGINAL
+ *    `bv*[height<=X]+ba/b` и RU `bv*[height<=X]+ba[language=ru]` (mp4), BOTH
+ *    `bv*[height<=X]+ba+ba[language=ru]` + --audio-multistreams (mkv);
+ * 3) комментарии (Этап 8): при включённых — `--write-comments --write-info-json`
+ *    с лимитом max_comments=500,50,10; json разбирается в Room и удаляется.
  *
  * Прогресс приходит колбэком библиотеки (проценты, ETA, сырая строка stderr);
  * скорость считается по дельте: прошлые lastBytes/lastTimeMs хранятся в
@@ -105,8 +108,17 @@ class VideoDownloader(
                 if (cancelledFlag) return@withContext finishCanceled(task, video, thumbsDir, videosDir)
                 downloadVideo(task, video, videosDir)
                 if (cancelledFlag) return@withContext finishCanceled(task, video, thumbsDir, videosDir)
+
+                // 3. Этап 8: .info.json → Room; файл удаляется внутри функции.
+                val commentsOk = if (task.withComments) {
+                    saveCommentsFromInfoJson(
+                        taskRepo, video.id, File(videosDir, "${video.youtubeId}.info.json"),
+                    ) { dbg(it) } >= 0
+                } else false
+
                 val thumbFile = File(thumbsDir, "${video.youtubeId}.jpg")
-                val videoFile = File(videosDir, "${video.youtubeId}.mp4")
+                // Этап 9: контейнер зависит от выбора аудио (BOTH → mkv).
+                val videoFile = File(videosDir, "${video.youtubeId}.${containerFor(task.audioChoice)}")
                 // Этап 7: пути файлов и размер — видео становится доступным офлайн.
                 videoRepo.update(
                     video.copy(
@@ -125,6 +137,7 @@ class VideoDownloader(
                         lastTimeMs = 0L,
                         thumbOk = true,
                         videoOk = true,
+                        commentsOk = commentsOk,
                     )
                 }
                 DownloadStatus.DONE
@@ -171,7 +184,7 @@ class VideoDownloader(
         updateTaskFresh(task) { it.copy(thumbOk = true) }
     }
 
-    /** Видео+аудио с объединением в mp4; прогресс — колбэком библиотеки. */
+    /** Видео+аудио по AudioChoice (Этап 9); прогресс — колбэком библиотеки. */
     private suspend fun downloadVideo(
         task: DownloadTaskEntity,
         video: VideoEntity,
@@ -180,11 +193,27 @@ class VideoDownloader(
         val request = YoutubeDLRequest(task.url)
             .addOption("--no-playlist")
             .addOption("--no-update") // без проверки обновления: тише и быстрее
-            .addOption("--extractor-args", "youtube:player_client=${playerClient()}")
-            .addOption("-f", "bv*[height<=${task.qualityHeight}]+ba/b")
-            .addOption("--merge-output-format", "mp4")
+            // player_client + лимит комментариев — ОДИН --extractor-args: повторный
+            // опс с тем же ключом youtube в yt-dlp ПЕРЕПИСЫВАЕТ предыдущий.
+            .addOption(
+                "--extractor-args",
+                "youtube:player_client=${playerClient()}" +
+                    if (task.withComments) ";max_comments=500,50,10" else "",
+            )
+            .addOption("-f", formatFor(task))
+            .addOption("--merge-output-format", containerFor(task.audioChoice))
             // Точка обязательна: %(ext)s подставляется БЕЗ точки.
             .addOption("-o", File(videosDir, "${video.youtubeId}.%(ext)s").absolutePath)
+        if (task.withComments) {
+            // Этап 8: комментарии в info.json; лимит max_comments выше обязателен —
+            // без него json мог бы весить 50+ МБ.
+            request.addOption("--write-comments")
+            request.addOption("--write-info-json")
+        }
+        if (task.audioChoice == AudioChoice.BOTH) {
+            // Этап 9: без флага yt-dlp откажется класть две аудиодорожки в один файл.
+            request.addOption("--audio-multistreams")
+        }
         val response = executeTracked(request, "video-${task.id}") { progress, etaSec, line ->
             holder.onLine(progress, etaSec, line)
         }
@@ -192,12 +221,29 @@ class VideoDownloader(
         if (response.exitCode != 0) {
             throw YtDlpException("Скачивание: ${lastStderrLine(response)}")
         }
-        if (!File(videosDir, "${video.youtubeId}.mp4").exists()) {
+        val ext = containerFor(task.audioChoice)
+        if (!File(videosDir, "${video.youtubeId}.$ext").exists()) {
             throw YtDlpException(
                 "Файл видео не найден после скачивания. stderr: ${stderrTail(response)}",
             )
         }
     }
+
+    /** Этап 9: селектор формата в зависимости от выбора аудиодорожки. */
+    private fun formatFor(task: DownloadTaskEntity): String {
+        val videoPart = "bv*[height<=${task.qualityHeight}]"
+        return when (task.audioChoice) {
+            AudioChoice.ORIGINAL -> "$videoPart+ba/b"
+            // Если селектор не сработает — задача FAILED; тогда рабочий селектор
+            // подбирается по formats из -J и записывается в PROGRESS.md.
+            AudioChoice.RU -> "$videoPart+ba[language=ru]"
+            AudioChoice.BOTH -> "$videoPart+ba+ba[language=ru]"
+        }
+    }
+
+    /** Этап 9: контейнер на выходе: BOTH → mkv (две аудиодорожки), иначе mp4. */
+    private fun containerFor(choice: AudioChoice): String =
+        if (choice == AudioChoice.BOTH) "mkv" else "mp4"
 
     /**
      * Клиент плеера YouTube для yt-dlp. По умолчанию `android` (2026-10-06):
@@ -251,7 +297,8 @@ class VideoDownloader(
 
     /** TODO(Этап 12): УДАЛИТЬ — дамп out/err в файл на телефоне (только при флаге). */
     private fun dumpDebug(processId: String, header: String, body: String) {
-        if (!DebugFlags.addUrlFlagFile(context).exists()) return
+        // Гейт по сессии: флаг-файл add_url одноразовый, удаляется при запуске.
+        if (!DebugFlags.sessionActive) return
         val dump = File(
             context.getExternalFilesDir(null) ?: context.filesDir,
             "debug_ytdlp_$processId.txt",
@@ -330,7 +377,8 @@ class VideoDownloader(
 
     // TODO(Этап 12): УДАЛИТЬ — маркеры автотеста в logcat (тег LocalTubeDebug).
     private fun dbg(message: String) {
-        if (DebugFlags.addUrlFlagFile(context).exists()) {
+        // Гейт по сессии: флаг-файл add_url одноразовый, удаляется при запуске.
+        if (DebugFlags.sessionActive) {
             Log.d(DebugFlags.TAG, message)
         }
     }

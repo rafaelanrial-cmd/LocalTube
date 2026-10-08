@@ -182,13 +182,15 @@ private fun AudioSection(
         RadioRow(stringResource(R.string.add_audio_original), selected == AudioChoice.ORIGINAL) {
             onSelected(AudioChoice.ORIGINAL)
         }
+        // Этап 9: RU/обе дорожки имеют смысл только при наличии русской дорожки —
+        // иначе селектор ba[language=ru] не найдёт формат и задача упадёт.
         if (hasRu) {
             RadioRow(stringResource(R.string.add_audio_ru), selected == AudioChoice.RU) {
                 onSelected(AudioChoice.RU)
             }
-        }
-        RadioRow(stringResource(R.string.add_audio_both), selected == AudioChoice.BOTH) {
-            onSelected(AudioChoice.BOTH)
+            RadioRow(stringResource(R.string.add_audio_both), selected == AudioChoice.BOTH) {
+                onSelected(AudioChoice.BOTH)
+            }
         }
     }
 }

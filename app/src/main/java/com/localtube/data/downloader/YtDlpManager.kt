@@ -1,6 +1,7 @@
 package com.localtube.data.downloader
 
 import android.content.Context
+import com.localtube.DebugFlags
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
@@ -10,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /** Ошибка движка скачивания (инициализация или запрос метаданных). */
 class YtDlpException(message: String, cause: Throwable? = null) : Exception(message, cause)
@@ -72,8 +74,19 @@ class YtDlpManager(appContext: Context) {
         val request = YoutubeDLRequest(url)
             .addOption("--no-playlist")
             .addOption("-J")
+        // TODO(Этап 12): УДАЛИТЬ — автотест Этапа 9: клиент из файла-флага
+        // (подбор рабочего player_client, когда дефолтный блокируется).
+        DebugFlags.readPlayerClient(context)?.let { client ->
+            request.addOption("--extractor-args", "youtube:player_client=$client")
+        }
         try {
             val response = YoutubeDL.execute(request, null, null)
+            // TODO(Этап 12): УДАЛИТЬ — дамп сырого -J для разбора formats (Этап 9).
+            // Гейт по сессии: флаг-файл add_url одноразовый, удаляется при запуске.
+            if (DebugFlags.sessionActive) {
+                File(context.getExternalFilesDir(null) ?: context.filesDir, "debug_fetch.json")
+                    .writeText(response.out)
+            }
             if (response.exitCode != 0) {
                 // yt-dlp пишет причину в stderr (например, «Video unavailable»).
                 val reason = response.err.trim().lineSequence()

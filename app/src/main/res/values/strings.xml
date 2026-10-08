@@ -27,8 +27,10 @@
     <string name="empty_settings">Скоро: настройки приложения</string>
     <string name="player_stub">Плеер для видео с id: %1$d</string>
 
-    <!-- Плеер (Этап 4) -->
+    <!-- Плеер (Этапы 4, 9) -->
     <string name="player_file_not_found">Файл не найден</string>
+    <string name="player_audio_tracks">Аудиодорожки</string>
+    <string name="audio_track_fallback">Дорожка %1$d</string>
 
     <!-- Детали (Этапы 4–5) -->
     <string name="details_watch">Смотреть</string>
@@ -38,7 +40,12 @@
     <string name="details_show_description">Показать описание</string>
     <string name="details_hide_description">Свернуть описание</string>
     <string name="details_comments">Комментарии</string>
-    <string name="details_comments_placeholder">Комментарии появятся после скачивания</string>
+    <string name="details_comments_disabled">Комментарии отключены</string>
+    <string name="comments_show_replies">Показать %1$d %2$s</string>
+    <string name="comments_reply_to">Ответ на %1$s</string>
+    <string name="comments_word_one">ответ</string>
+    <string name="comments_word_few">ответа</string>
+    <string name="comments_word_many">ответов</string>
     <string name="details_delete">Удалить</string>
     <string name="details_delete_dialog_title">Удалить видео?</string>
     <string name="details_delete_dialog_text">Освободится %1$s МБ.</string>

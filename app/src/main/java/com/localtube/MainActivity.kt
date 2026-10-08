@@ -73,12 +73,29 @@ class MainActivity : ComponentActivity() {
     /**
      * TODO(Этап 12): УДАЛИТЬ — если в externalFilesDir лежит файл-флаг,
      * автопереход в плеер / на экран «Добавить» (механизм тестового видео удалён в Этапе 7).
+     *
+     * Флаги одноразовые: файл удаляется сразу после чтения (баг 2026-10-08 —
+     * забытый debug_add_url заставлял приложение при каждом запуске улетать
+     * в «Добавить» и самогрузить ссылку; теперь это невозможно).
      */
     private fun maybeStartDebugNavigation() {
         val appContainer = LocalTubeApp.instance.container
+        // TODO(Этап 12): УДАЛИТЬ — флаг «детали по youtubeId»: автотест комментариев офлайн (Этап 8).
+        val detailsYtid = DebugFlags.readDetailsYtid(this)
+        if (detailsYtid != null) {
+            DebugFlags.sessionActive = true
+            DebugFlags.detailsYtidFlagFile(this).delete()
+            lifecycleScope.launch {
+                val video = appContainer.videoRepository.getByYoutubeId(detailsYtid)
+                if (video != null) debugDetailsId.value = video.id.toLong()
+            }
+            return
+        }
         // TODO(Этап 12): УДАЛИТЬ — флаг «плеер по youtubeId»: открыть плеер скачанного видео (автотест Этапа 7).
         val playerYtid = DebugFlags.readPlayerYtid(this)
         if (playerYtid != null) {
+            DebugFlags.sessionActive = true
+            DebugFlags.playerYtidFlagFile(this).delete()
             lifecycleScope.launch {
                 val video = appContainer.videoRepository.getByYoutubeId(playerYtid)
                 if (video != null) debugPlayerId.value = video.id.toLong()
@@ -87,7 +104,9 @@ class MainActivity : ComponentActivity() {
         }
         // TODO(Этап 12): УДАЛИТЬ — флаг «добавить»: ссылка из файла, автопереход в «Добавить».
         if (DebugFlags.addUrlFlagFile(this).exists()) {
+            DebugFlags.sessionActive = true
             debugAddUrl.value = DebugFlags.readAddUrlFlag(this)
+            DebugFlags.addUrlFlagFile(this).delete()
             return
         }
     }
