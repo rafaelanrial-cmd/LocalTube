@@ -68,16 +68,16 @@ fun PlayerScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Память позиции (баг-фикс 2026-10-08): игрок живёт в ViewModel — переживает
-    // поворот экрана, поэтому смена ориентации не сбрасывает воспроизведение.
+    // Игрок живёт в ViewModel: позиция и режим переживают поворот экрана (баг-фикс 2026-10-08).
     val player = viewModel.player
+    // Ссылка на PlayerView — прячем встроенные кнопки в углу (баг-фикс 2026-10-08).
+    var playerView by remember { mutableStateOf<PlayerView?>(null) }
 
     // AUDIO-группы и выбранная дорожка из currentTracks; обновляются в onTracksChanged.
     var audioGroups by remember(player) { mutableStateOf<List<TrackGroup>>(emptyList()) }
     var currentAudio by remember(player) { mutableStateOf<Pair<TrackGroup, Int>?>(null) }
 
-    // Этап 9: AUDIO-группы из currentTracks. Игрок создаётся и настраивается
-    // в ViewModel (setMediaItem/prepare/play); здесь только слушатель для диалога.
+    // Этап 9: AUDIO-группы из currentTracks; игрок создаётся в ViewModel, здесь — слушатель.
     DisposableEffect(player) {
         val tracksListener = object : Player.Listener {
             override fun onTracksChanged(tracks: Tracks) {
@@ -105,15 +105,16 @@ fun PlayerScreen(
                 } else {
                     null
                 }
+                // Встроенные кнопки media3 включаются при смене дорожек — прячем снова.
+                playerView?.let { hideBuiltInCornerButtons(it) }
             }
         }
         player.addListener(tracksListener)
         onDispose { player.removeListener(tracksListener) }
     }
 
-    // Пауза при уходе в фон/повороте (activity ON_STOP), возобновление — при возврате.
-    // shouldResume живёт в ViewModel: переживает поворот экрана, поэтому после
-    // смены ориентации воспроизведение продолжается, а не остаётся на паузе.
+    // Пауза при уходе в фон/повороте (ON_STOP), возобновление — при возврате;
+    // shouldResume живёт в ViewModel — переживает поворот экрана.
     DisposableEffect(lifecycleOwner, player) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -213,23 +214,23 @@ fun PlayerScreen(
                     player = player,
                     modifier = Modifier.fillMaxSize(),
                     onControllerVisibilityChange = { showController = it },
+                    onReady = {
+                        playerView = it
+                        hideBuiltInCornerButtons(it)
+                    },
                 )
                 // Баг-фикс 2026-10-08: кнопки в правом нижнем углу, прячутся вместе с интерфейсом.
                 if (showController) {
                     VideoOverlayControls(
-                        onAudioTracksClick = { showTrackDialog = true },
-                        onFullscreenClick = { isFullscreen = true },
-                        showAudioTracks = audioGroups.isNotEmpty(),
-                        showFullscreenButton = !isFullscreen,
+                        isFullscreen = isFullscreen,
+                        onToggleFullscreen = { isFullscreen = !isFullscreen },
+                        onSettingsClick = {
+                            // Старое меню media3 (скорость + аудиодорожки); фолбэк — наш диалог.
+                            val pv = playerView
+                            if (pv == null || !openBuiltInSettings(pv)) showTrackDialog = true
+                        },
                         modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
                     )
-                    // Полноэкранный режим: кнопка выхода справа сверху.
-                    if (isFullscreen) {
-                        FullscreenExitButton(
-                            onClick = { isFullscreen = false },
-                            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
-                        )
-                    }
                 }
             }
         }
@@ -277,6 +278,7 @@ private fun ExoPlayerView(
     player: ExoPlayer,
     modifier: Modifier = Modifier,
     onControllerVisibilityChange: (Boolean) -> Unit,
+    onReady: (PlayerView) -> Unit,
 ) {
     val latestCallback = rememberUpdatedState(onControllerVisibilityChange)
     AndroidView(
@@ -288,6 +290,7 @@ private fun ExoPlayerView(
                 setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { v ->
                     latestCallback.value(v == View.VISIBLE)
                 })
+                onReady(this)
             }
         },
         update = { view ->
