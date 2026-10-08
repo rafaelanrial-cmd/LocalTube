@@ -1,6 +1,7 @@
 package com.localtube.ui.screens
 
 import android.util.Log
+import android.view.View
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,8 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -158,6 +157,9 @@ fun PlayerScreen(
     // пересоздаётся, обычный remember() потерял бы полноэкранный режим.
     var isFullscreen by rememberSaveable { mutableStateOf(false) }
 
+    // Баг-фикс 2026-10-08: кнопки поверх видео прячутся вместе с интерфейсом плеера (тап/авто-скрытие).
+    var showController by remember { mutableStateOf(true) }
+
     // В полном экране «назад» (кнопка или жест) сначала выходит из него, а не с экрана.
     BackHandler(enabled = isFullscreen) { isFullscreen = false }
 
@@ -188,24 +190,6 @@ fun PlayerScreen(
                             )
                         }
                     },
-                    actions = {
-                        // Этап 9: кнопка видна, когда дорожки уже распознаны.
-                        if (audioGroups.isNotEmpty()) {
-                            IconButton(onClick = { showTrackDialog = true }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Language,
-                                    contentDescription = stringResource(R.string.player_audio_tracks),
-                                )
-                            }
-                        }
-                        // Полноэкранный режим (2026-10-08): растянуть видео на весь экран.
-                        IconButton(onClick = { isFullscreen = true }) {
-                            Icon(
-                                imageVector = Icons.Filled.Fullscreen,
-                                contentDescription = stringResource(R.string.player_fullscreen),
-                            )
-                        }
-                    },
                 )
             }
         },
@@ -225,13 +209,27 @@ fun PlayerScreen(
                     Modifier.fillMaxSize().padding(innerPadding)
                 },
             ) {
-                ExoPlayerView(player = player, modifier = Modifier.fillMaxSize())
-                // Полноэкранный режим: кнопка выхода поверх видео.
-                if (isFullscreen) {
-                    FullscreenExitButton(
-                        onClick = { isFullscreen = false },
-                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                ExoPlayerView(
+                    player = player,
+                    modifier = Modifier.fillMaxSize(),
+                    onControllerVisibilityChange = { showController = it },
+                )
+                // Баг-фикс 2026-10-08: кнопки в правом нижнем углу, прячутся вместе с интерфейсом.
+                if (showController) {
+                    VideoOverlayControls(
+                        onAudioTracksClick = { showTrackDialog = true },
+                        onFullscreenClick = { isFullscreen = true },
+                        showAudioTracks = audioGroups.isNotEmpty(),
+                        showFullscreenButton = !isFullscreen,
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp),
                     )
+                    // Полноэкранный режим: кнопка выхода справа сверху.
+                    if (isFullscreen) {
+                        FullscreenExitButton(
+                            onClick = { isFullscreen = false },
+                            modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                        )
+                    }
                 }
             }
         }
@@ -273,14 +271,23 @@ private fun FileNotFoundContent(modifier: Modifier = Modifier) {
     }
 }
 
-/** PlayerView для готового игрока (Этап 9: игрок создаётся в PlayerScreen). */
+/** PlayerView для готового игрока; сообщает видимость интерфейса (баг-фикс 2026-10-08). */
 @Composable
-private fun ExoPlayerView(player: ExoPlayer, modifier: Modifier = Modifier) {
+private fun ExoPlayerView(
+    player: ExoPlayer,
+    modifier: Modifier = Modifier,
+    onControllerVisibilityChange: (Boolean) -> Unit,
+) {
+    val latestCallback = rememberUpdatedState(onControllerVisibilityChange)
     AndroidView(
         factory = { ctx ->
             PlayerView(ctx).apply {
                 setPlayer(player)
                 showController()
+                // Явный интерфейс: у метода два SAM-оверлода, лямбда была бы неоднозначна.
+                setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { v ->
+                    latestCallback.value(v == View.VISIBLE)
+                })
             }
         },
         update = { view ->
