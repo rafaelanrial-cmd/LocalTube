@@ -1,12 +1,15 @@
 package com.localtube.ui.screens
 
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -18,12 +21,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,7 +48,6 @@ import com.localtube.DebugFlags
 import com.localtube.R
 import com.localtube.ui.components.AudioTrackSelectionDialog
 import com.localtube.ui.components.selectAudioTrack
-import kotlinx.coroutines.delay
 import java.io.File
 
 /**
@@ -152,36 +154,60 @@ fun PlayerScreen(
     // Этап 9: диалог выбора аудиодорожки.
     var showTrackDialog by remember { mutableStateOf(false) }
 
+    // Полноэкранный режим (2026-10-08): rememberSaveable — при повороте Activity
+    // пересоздаётся, обычный remember() потерял бы полноэкранный режим.
+    var isFullscreen by rememberSaveable { mutableStateOf(false) }
+
+    // В полном экране «назад» (кнопка или жест) сначала выходит из него, а не с экрана.
+    BackHandler(enabled = isFullscreen) { isFullscreen = false }
+
+    // Полноэкранный режим: скрытие/показ системных панелей (статус-бар + навигация).
+    PlayerSystemBarsFullscreen(isFullscreen)
+
+    // TODO(Этап 12): УДАЛИТЬ — автотест полноэкранного режима (флаг debug_fullscreen,
+    // одноразовый: приложение само удаляет файл после срабатывания).
+    FullscreenDebugAutoTest(context) { isFullscreen = true }
+
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        (uiState as? PlayerUiState.Ready)?.video?.title
-                            ?: stringResource(R.string.title_player),
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
+            // Полноэкранный режим (2026-10-08): шапка приложения скрыта — видео на весь экран.
+            if (!isFullscreen) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            (uiState as? PlayerUiState.Ready)?.video?.title
+                                ?: stringResource(R.string.title_player),
                         )
-                    }
-                },
-                actions = {
-                    // Этап 9: кнопка видна, когда дорожки уже распознаны.
-                    if (audioGroups.isNotEmpty()) {
-                        IconButton(onClick = { showTrackDialog = true }) {
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
                             Icon(
-                                imageVector = Icons.Filled.Language,
-                                contentDescription = stringResource(R.string.player_audio_tracks),
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.back),
                             )
                         }
-                    }
-                },
-            )
+                    },
+                    actions = {
+                        // Этап 9: кнопка видна, когда дорожки уже распознаны.
+                        if (audioGroups.isNotEmpty()) {
+                            IconButton(onClick = { showTrackDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Language,
+                                    contentDescription = stringResource(R.string.player_audio_tracks),
+                                )
+                            }
+                        }
+                        // Полноэкранный режим (2026-10-08): растянуть видео на весь экран.
+                        IconButton(onClick = { isFullscreen = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.Fullscreen,
+                                contentDescription = stringResource(R.string.player_fullscreen),
+                            )
+                        }
+                    },
+                )
+            }
         },
     ) { innerPadding ->
         when (val state = uiState) {
@@ -191,10 +217,23 @@ fun PlayerScreen(
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
             )
 
-            is PlayerUiState.Ready -> ExoPlayerView(
-                player = player,
-                modifier = Modifier.fillMaxSize().padding(innerPadding),
-            )
+            is PlayerUiState.Ready -> Box(
+                // Полноэкранный режим (2026-10-08): без отступов — видео на весь экран.
+                modifier = if (isFullscreen) {
+                    Modifier.fillMaxSize()
+                } else {
+                    Modifier.fillMaxSize().padding(innerPadding)
+                },
+            ) {
+                ExoPlayerView(player = player, modifier = Modifier.fillMaxSize())
+                // Полноэкранный режим: кнопка выхода поверх видео.
+                if (isFullscreen) {
+                    FullscreenExitButton(
+                        onClick = { isFullscreen = false },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+                    )
+                }
+            }
         }
     }
 
@@ -207,25 +246,9 @@ fun PlayerScreen(
         )
     }
 
-    // TODO(Этап 12): УДАЛИТЬ — автотест без тапов (MIUI блокирует input-события).
-    // Этап 4: play → пауза через 4 с → seekTo(20 с); маркеры — в logcat.
-    // Не запускается при флаге переключения дорожек (Этап 9): пауза/перемотка
-    // исказили бы проверку «позиция пошла вперёд» после смены дорожки.
-    val audioSwitchFlag = DebugFlags.audioSwitchFlagFile(context)
-    if (audioSwitchFlag.exists()) {
-        player.audioSwitchAutoTest(audioGroups)
-    }
-    if (DebugFlags.flagFile(context).exists() && !audioSwitchFlag.exists()) {
-        LaunchedEffect(player) {
-            delay(4_000)
-            player.pause()
-            Log.d(DebugFlags.TAG, "PAUSE pos=${player.currentPosition}ms")
-            delay(4_000)
-            player.seekTo(20_000)
-            player.play()
-            Log.d(DebugFlags.TAG, "SEEK_20S pos=${player.currentPosition}ms")
-        }
-    }
+    // TODO(Этап 12): УДАЛИТЬ — автотест без тапов (MIUI блокирует input-события);
+    // реализация в PlayerAudioSwitchTest.kt (перенос, чтобы файл не превышал 300 строк).
+    PlayerDebugAutoTest(player, audioGroups, context)
 
 }
 

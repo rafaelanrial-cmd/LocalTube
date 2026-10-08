@@ -30,6 +30,9 @@
     <!-- Плеер (Этапы 4, 9) -->
     <string name="player_file_not_found">Файл не найден</string>
     <string name="player_audio_tracks">Аудиодорожки</string>
+    <!-- Полноэкранный режим (2026-10-08) -->
+    <string name="player_fullscreen">На весь экран</string>
+    <string name="player_exit_fullscreen">Выйти из полноэкранного режима</string>
     <string name="audio_track_fallback">Дорожка %1$d</string>
 
     <!-- Детали (Этапы 4–5) -->

@@ -1,5 +1,6 @@
 package com.localtube.ui.screens
 
+import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -86,6 +87,32 @@ fun ExoPlayer.audioSwitchAutoTest(audioGroups: List<TrackGroup>) {
                 DebugFlags.TAG,
                 "SWITCH_BACK pos=${currentPosition}ms playing=${isPlaying}",
             )
+        }
+    }
+}
+
+/**
+ * TODO(Этап 12): УДАЛИТЬ — автотест Этапа 4 без тапов (MIUI блокирует input-события):
+ * play → пауза через 4 с → seekTo(20 с); маркеры PAUSE/SEEK_20S в logcat.
+ * Не запускается при флаге переключения дорожек (Этап 9): пауза/перемотка
+ * исказили бы проверку «позиция пошла вперёд» после смены дорожки.
+ * Вызывается из PlayerScreen (перенос, чтобы файл экрана не превышал 300 строк).
+ */
+@Composable
+fun PlayerDebugAutoTest(player: ExoPlayer, audioGroups: List<TrackGroup>, context: Context) {
+    val audioSwitchFlag = DebugFlags.audioSwitchFlagFile(context)
+    if (audioSwitchFlag.exists()) {
+        player.audioSwitchAutoTest(audioGroups)
+    }
+    if (DebugFlags.flagFile(context).exists() && !audioSwitchFlag.exists()) {
+        LaunchedEffect(player) {
+            delay(4_000)
+            player.pause()
+            Log.d(DebugFlags.TAG, "PAUSE pos=${player.currentPosition}ms")
+            delay(4_000)
+            player.seekTo(20_000)
+            player.play()
+            Log.d(DebugFlags.TAG, "SEEK_20S pos=${player.currentPosition}ms")
         }
     }
 }

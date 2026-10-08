@@ -27,7 +27,9 @@ import java.io.File
  * - [AUDIO_SWITCH_FLAG_FILE_NAME] — в плеере: лог AUDIO-дорожек + переключение
  *   на RU и обратно без перезапуска (автотест Этапа 9);
  * - [NO_COMMENTS_FLAG_FILE_NAME] — автоскачивание идёт без комментариев
- *   (Этап 8 пока не проверяется; автотест Этапа 9 изолирован от него).
+ *   (Этап 8 пока не проверяется; автотест Этапа 9 изолирован от него);
+ * - [FULLSCREEN_FLAG_FILE_NAME] — в плеере сам включает полноэкранный режим
+ *   (автотест 2026-10-08); одноразовый — удаляется после срабатывания.
  * Маркеры — в logcat под тегом [TAG]. Флаги: adb shell touch
  * /sdcard/Android/data/com.localtube/files/<имя флага>.
  *
@@ -167,4 +169,11 @@ object DebugFlags {
         if (!file.exists()) return null
         return file.readText().trim().ifEmpty { null }
     }
+
+    /** Имя файла-флага: автотест полноэкранного режима плеера (2026-10-08). */
+    const val FULLSCREEN_FLAG_FILE_NAME = "debug_fullscreen"
+
+    /** Файл-флаг автотеста полноэкранного режима; достаточно просто создать. */
+    fun fullscreenFlagFile(context: Context): File =
+        File(context.getExternalFilesDir(null) ?: context.filesDir, FULLSCREEN_FLAG_FILE_NAME)
 }
