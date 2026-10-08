@@ -4,10 +4,10 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 
 /**
- * Room-база LocalTube, версия 2 (Этап 7: поля опций и дельты скорости в задачах).
+ * Room-база LocalTube, версия 3 (баг-фикс 2026-10-08: память позиции videos.positionMs).
  *
- * Политика миграций — fallbackToDestructiveMigration (настраивается в AppContainer):
- * при несовместимом изменении схемы база пересоздаётся.
+ * Миграция 2→3 — явно в AppContainer (MIGRATION_2_3), чтобы не стирать базу;
+ * fallbackToDestructiveMigration остаётся страховкой для более старых версий.
  */
 @Database(
     entities = [
@@ -15,7 +15,7 @@ import androidx.room.RoomDatabase
         DownloadTaskEntity::class,
         CommentEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {

@@ -24,6 +24,9 @@ class VideoRepository(private val dao: VideoDao) {
     /** Этап 7: записать пути файлов и размер после скачивания. */
     suspend fun update(video: VideoEntity) = dao.update(video)
 
+    /** Память позиции (баг-фикс 2026-10-08): сохранить место воспроизведения (мс). */
+    suspend fun updatePosition(id: Int, positionMs: Long) = dao.updatePositionMs(id, positionMs)
+
     /** Удаляет видео; задачи скачивания и комментарии уходят CASCADE. */
     suspend fun delete(video: VideoEntity) = dao.delete(video)
 }

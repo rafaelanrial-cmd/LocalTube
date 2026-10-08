@@ -30,6 +30,10 @@ interface VideoDao {
     @Update
     suspend fun update(video: VideoEntity)
 
+    /** Память позиции (баг-фикс 2026-10-08): последнее место воспроизведения, мс. */
+    @Query("UPDATE videos SET positionMs = :positionMs WHERE id = :id")
+    suspend fun updatePositionMs(id: Int, positionMs: Long)
+
     /** Удаляет видео; задачи и комментарии уходят CASCADE. */
     @Delete
     suspend fun delete(video: VideoEntity)

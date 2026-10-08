@@ -2,6 +2,8 @@ package com.localtube.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.localtube.data.db.AppDatabase
 import com.localtube.data.downloader.YtDlpManager
 import com.localtube.data.repo.DownloadRepository
@@ -27,6 +29,7 @@ class AppContainer(appContext: Context) {
     // Этап 2: Room-база и репозитории.
     val database: AppDatabase by lazy {
         Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.NAME)
+            .addMigrations(MIGRATION_2_3)
             .fallbackToDestructiveMigration()
             .build()
     }
@@ -44,4 +47,13 @@ class AppContainer(appContext: Context) {
 
     // Этап 7: исполнение задач скачивания — в service.DownloadService
     // (запускается из AddViewModel и при старте приложения, см. LocalTubeApp).
+
+    private companion object {
+        /** Миграция 2→3: память позиции воспроизведения (баг-фикс 2026-10-08). */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE videos ADD COLUMN positionMs INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+    }
 }

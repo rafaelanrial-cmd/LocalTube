@@ -18,6 +18,7 @@ import androidx.room.PrimaryKey
  * @param sizeBytes суммарный размер скачанного (видео+аудио), байты
  * @param audioLangs коды доступных аудиодорожек через запятую (например "en,ru")
  * @param hasRuTrack есть ли русская аудиодорожка (Этап 9)
+ * @param positionMs последнее место воспроизведения, миллисекунды (баг-фикс 2026-10-08)
  */
 @Entity(
     tableName = "videos",
@@ -35,4 +36,5 @@ data class VideoEntity(
     val sizeBytes: Long = 0L,
     val audioLangs: String = "",
     val hasRuTrack: Boolean = false,
+    val positionMs: Long = 0L,
 )

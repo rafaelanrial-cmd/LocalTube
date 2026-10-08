@@ -32,22 +32,19 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.C
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.TrackGroup
 import androidx.media3.common.Tracks
-import androidx.media3.common.TrackSelectionOverride
-import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.localtube.DebugFlags
 import com.localtube.R
 import com.localtube.ui.components.AudioTrackSelectionDialog
+import com.localtube.ui.components.selectAudioTrack
 import kotlinx.coroutines.delay
 import java.io.File
 
@@ -63,33 +60,24 @@ fun PlayerScreen(
     id: Long,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: PlayerViewModel = viewModel(factory = PlayerViewModel.factory(id)),
+    // Ключ по id видео: при смене видео не переиспользуется чужой игрок.
+    viewModel: PlayerViewModel = viewModel(key = "player-$id", factory = PlayerViewModel.factory(id)),
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Этап 9: игрок живёт на уровне экрана (а не внутри ExoPlayerView) — так
-    // TopAppBar может показать кнопку «дорожки» и открыть диалог. Пока нет
-    // Ready — null; когда файл появился, remember() создаёт нового игрока.
-    val readyFile = (uiState as? PlayerUiState.Ready)?.file
-    val player = remember(readyFile) {
-        readyFile?.let { ExoPlayer.Builder(context).build() }
-    }
+    // Память позиции (баг-фикс 2026-10-08): игрок живёт в ViewModel — переживает
+    // поворот экрана, поэтому смена ориентации не сбрасывает воспроизведение.
+    val player = viewModel.player
 
     // AUDIO-группы и выбранная дорожка из currentTracks; обновляются в onTracksChanged.
     var audioGroups by remember(player) { mutableStateOf<List<TrackGroup>>(emptyList()) }
     var currentAudio by remember(player) { mutableStateOf<Pair<TrackGroup, Int>?>(null) }
 
+    // Этап 9: AUDIO-группы из currentTracks. Игрок создаётся и настраивается
+    // в ViewModel (setMediaItem/prepare/play); здесь только слушатель для диалога.
     DisposableEffect(player) {
-        // Media3 1.4.1: Tracks не Iterable — группы читаем через tracks.groups;
-        // lambda эффекта обязана вернуть DisposableEffectResult, поэтому ветка
-        // null закрывается пустым onDispose вместо return Unit.
-        val p = player
-        if (p == null || readyFile == null) {
-            onDispose {}
-        } else {
-            val file = readyFile!!
         val tracksListener = object : Player.Listener {
             override fun onTracksChanged(tracks: Tracks) {
                 // «Выбрано» читается из группы: isSelected()/isTrackSelected(i).
@@ -118,50 +106,47 @@ fun PlayerScreen(
                 }
             }
         }
-            p.addListener(tracksListener)
-            p.setMediaItem(MediaItem.Builder().setUri(file.toUri()).build())
-            p.prepare()
-            p.play()
-            onDispose {
-                p.removeListener(tracksListener)
-                p.release()
-            }
-        }
+        player.addListener(tracksListener)
+        onDispose { player.removeListener(tracksListener) }
     }
 
-    // Пауза при уходе с экрана в фон (activity ON_STOP), возобновление — при возврате.
+    // Пауза при уходе в фон/повороте (activity ON_STOP), возобновление — при возврате.
+    // shouldResume живёт в ViewModel: переживает поворот экрана, поэтому после
+    // смены ориентации воспроизведение продолжается, а не остаётся на паузе.
     DisposableEffect(lifecycleOwner, player) {
-        val p = player
-        if (p == null) {
-            onDispose {}
-        } else {
-            var shouldResume = false
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_STOP -> if (p.isPlaying) {
-                    p.pause()
-                    shouldResume = true
+                Lifecycle.Event.ON_STOP -> if (player.isPlaying) {
+                    player.pause()
+                    viewModel.shouldResume = true
                     // TODO(Этап 12): УДАЛИТЬ — маркер для проверки паузы при уходе с экрана.
                     if (DebugFlags.flagFile(context).exists()) {
-                        Log.d(DebugFlags.TAG, "ON_STOP_PAUSE pos=${p.currentPosition}ms")
+                        Log.d(DebugFlags.TAG, "ON_STOP_PAUSE pos=${player.currentPosition}ms")
                     }
                 }
 
-                Lifecycle.Event.ON_START -> if (shouldResume) {
-                    p.play()
-                    shouldResume = false
+                Lifecycle.Event.ON_START -> if (viewModel.shouldResume) {
+                    player.play()
+                    viewModel.shouldResume = false
                     // TODO(Этап 12): УДАЛИТЬ — маркер для проверки возобновления.
                     if (DebugFlags.flagFile(context).exists()) {
-                        Log.d(DebugFlags.TAG, "ON_START_RESUME pos=${p.currentPosition}ms")
+                        Log.d(DebugFlags.TAG, "ON_START_RESUME pos=${player.currentPosition}ms")
                     }
                 }
 
                 else -> Unit
             }
         }
-            lifecycleOwner.lifecycle.addObserver(observer)
-            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Память позиции (баг-фикс 2026-10-08): периодическое сохранение + ON_STOP.
+    PlaybackPositionMemory(player, viewModel, lifecycleOwner)
+
+    // Выход с экрана (назад): пауза; release — в ViewModel.onCleared.
+    DisposableEffect(Unit) {
+        onDispose { if (player.isPlaying) player.pause() }
     }
 
     // Этап 9: диалог выбора аудиодорожки.
@@ -187,7 +172,7 @@ fun PlayerScreen(
                 },
                 actions = {
                     // Этап 9: кнопка видна, когда дорожки уже распознаны.
-                    if (player != null && audioGroups.isNotEmpty()) {
+                    if (audioGroups.isNotEmpty()) {
                         IconButton(onClick = { showTrackDialog = true }) {
                             Icon(
                                 imageVector = Icons.Filled.Language,
@@ -207,13 +192,13 @@ fun PlayerScreen(
             )
 
             is PlayerUiState.Ready -> ExoPlayerView(
-                player = player!!,
+                player = player,
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
             )
         }
     }
 
-    if (showTrackDialog && player != null) {
+    if (showTrackDialog) {
         AudioTrackSelectionDialog(
             groups = audioGroups,
             current = currentAudio,
@@ -227,10 +212,10 @@ fun PlayerScreen(
     // Не запускается при флаге переключения дорожек (Этап 9): пауза/перемотка
     // исказили бы проверку «позиция пошла вперёд» после смены дорожки.
     val audioSwitchFlag = DebugFlags.audioSwitchFlagFile(context)
-    if (player != null && audioSwitchFlag.exists()) {
+    if (audioSwitchFlag.exists()) {
         player.audioSwitchAutoTest(audioGroups)
     }
-    if (player != null && DebugFlags.flagFile(context).exists() && !audioSwitchFlag.exists()) {
+    if (DebugFlags.flagFile(context).exists() && !audioSwitchFlag.exists()) {
         LaunchedEffect(player) {
             delay(4_000)
             player.pause()
@@ -242,22 +227,6 @@ fun PlayerScreen(
         }
     }
 
-}
-
-/** Этап 9: смена аудиодорожки через TrackSelectionOverride — на лету, без рестарта. */
-internal fun selectAudioTrack(player: ExoPlayer, group: TrackGroup, index: Int) {
-    // Media3 1.4.1: Builder.addOverride принимает TrackSelectionOverride(group, index),
-    // старые аудио-оверраиды сначала снимаются (иначе новый не применится).
-    val params = player.trackSelectionParameters
-        .buildUpon()
-        .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
-        .addOverride(TrackSelectionOverride(group, index))
-        .build()
-    player.trackSelectionParameters = params
-    Log.d(
-        DebugFlags.TAG,
-        "AUDIO_SELECT lang=${group.getFormat(index).language} pos=${player.currentPosition}ms",
-    )
 }
 
 /** Экран «Файл не найден»: записи в базе нет или файла на диске больше нет. */
