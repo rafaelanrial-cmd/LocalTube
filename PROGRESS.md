@@ -6,6 +6,19 @@
 > Compose, Room, ручной DI. Актуальный план — в MASTER_PLAN.md.
 > Окружение из Этапа 0 осталось без изменений и подходит под новый стек.
 
+## ПУБЛИКАЦИЯ v1.0.0 на GitHub (2026-10-10)
+- Репозиторий: **https://github.com/rafaelanrial-cmd/LocalTube** (public, ветка main).
+  Код + тег `v1.0.0` запушены (коммит `f620fab`).
+- Релиз **v1.0.0**: https://github.com/rafaelanrial-cmd/LocalTube/releases/tag/v1.0.0
+  с asset **LocalTube1.0.apk** (261.3 МБ, создан через GitHub API, upload ok).
+- Создано для публикации: LICENSE (MIT, © rafaelanrial-cmd), README.md (RU+EN,
+  ссылка на Releases ведёт на rafaelanrial-cmd/LocalTube), THIRD_PARTY_LICENSES.md
+  (youtubedl-android GPLv3, yt-dlp BSD-2-Clause, ffmpeg LGPL/GPL, остальные Apache-2.0),
+  CHANGELOG.md (v1.0.0).
+- Серийник телефона убран из PROGRESS.md перед пушем.
+- Токен GitHub сохранён в Windows Credential Manager (`cmdkey git:https://github.com`)
+  — будущие `git push` работают без повторного входа.
+
 ## Подготовка к публикации — чистка проекта (2026-10-10)
 - Удалён весь служебный мусор из корня (~900 МБ): диагностические дампы
   yt-dlp/innertube (`_diag*`, `it_*.json`, `j_qLp.*`, `dbg_*`), дампы БД
