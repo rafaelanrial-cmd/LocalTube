@@ -10,30 +10,9 @@ captures/
 .cxx/
 .externalNativeBuild/
 
+# Собранные APK (готовый файл — в dist/, не коммитить)
+/dist/
+
 # Разное
 *.apk.idsig
 .DS_Store
-
-# Служебные файлы тестов (adb/innertube/дамп БД) — не коммитить
-/.debug_*
-/db_stage*
-/lt_db*
-/lt_stage8_check.db
-/dbcheck*/
-/it*.json
-/j_*.json
-/j_*.err
-/innertube_*.json
-/shot_*.png
-/nul
-/dbg_*
-/it_err.txt
-/probe.sh
-build.log
-
-# Служебное (создано в сессии 2026-10-09, не коммитить)
-.kotlin/
-_build_ytdlp/
-pip/
-_diag*
-build_out.txt

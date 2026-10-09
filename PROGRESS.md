@@ -6,6 +6,19 @@
 > Compose, Room, ручной DI. Актуальный план — в MASTER_PLAN.md.
 > Окружение из Этапа 0 осталось без изменений и подходит под новый стек.
 
+## Подготовка к публикации — чистка проекта (2026-10-10)
+- Удалён весь служебный мусор из корня (~900 МБ): диагностические дампы
+  yt-dlp/innertube (`_diag*`, `it_*.json`, `j_qLp.*`, `dbg_*`), дампы БД
+  (`db_stage8*`, `lt_db*`, `dbcheck*/`), флаги `.debug_*`, `_build_ytdlp/`,
+  `pip/`, `_test_pyz/`, кэши `.gradle/`+`.kotlin/`, `build.log`, `nul`.
+- Готовый APK перенесён в **`dist/LocalTube1.0.apk`** (262 МБ; `/dist/` — в .gitignore).
+- Скриншот для будущего README сохранён: `docs/screenshots/details_online.png`.
+- `.gitignore` упрощён до стандартного (+ `/dist/`).
+- Проверка после чистки: `gradlew.bat assembleDebug` — BUILD SUCCESSFUL.
+- **Осталось для open source** (решает пользователь): выбор лицензии (MIT/Apache 2.0),
+  LICENSE, README.md, THIRD_PARTY_LICENSES.md (yt-dlp BSD-2-Clause, ffmpeg GPLv3 —
+  бинарник Termux из youtubedl-android), публичный git remote + push.
+
 ## Карта этапов (13)
 - [x] **Этап 0** — Окружение: JDK 17, Gradle, Android SDK, adb, git, телефон
 - [x] **Этап 1** — Проект + навигация: скелет Compose, wrapper 8.9, 4 экрана-заглушки (сборка ✓, установка и запуск на телефоне ✓)
