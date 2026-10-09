@@ -177,6 +177,8 @@ class VideoDownloader(
             request.addOption("--write-comments")
             request.addOption("--write-info-json")
         }
+        // Этап 9: пометить язык аудиодорожек, чтобы плеер показывал «русский».
+        request.addAudioLanguageTags(task.audioChoice)
         if (task.audioChoice == AudioChoice.BOTH) {
             // Этап 9: без флага yt-dlp откажется класть две аудиодорожки в один файл.
             request.addOption("--audio-multistreams")

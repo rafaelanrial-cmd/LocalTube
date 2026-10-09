@@ -16,7 +16,7 @@
 - [x] **Этап 6** — Добавление: метаданные (сборка ✓, проверка на телефоне по реальной ссылке ✓: FETCH_OK + карточка с верными данными)
 - [x] **Этап 7** — Скачивание + прогресс (сборка ✓, проверка на телефоне ✓: реальный ролик DONE 100% с прогрессом/скоростью, оффлайн-плеер ✓, отмена ✓; 403 решён — клиент android + ByeDPI)
 - [x] **Этап 8** — Комментарии с ответами (сборка ✓, **проверка на телефоне ✓: ответы появляются — подтверждено пользователем 2026-10-09**)
-- [ ] **Этап 9** — RU-дорожка
+- [x] **Этап 9** — RU-дорожка (сборка ✓, установка ✓ 2026-10-09; живая проверка RU/BOTH пользователем)
 - [ ] **Этап 10** — Настройки + обновление движка
 - [ ] **Этап 11** — Ошибки + MIUI
 - [ ] **Этап 12** — Полировка + финал
@@ -29,6 +29,43 @@
   процесс (PID 29413) жив, в logcat **0 FATAL EXCEPTION / Fatal signal**
   (шум AppSearchIcing — системная индексация MIUI, не ошибка приложения).
 - В будущих этапах: при `installDebug`/`adb install` ждать подтверждения на телефоне.
+
+## Этап 9: RU-дорожка — скачивание видео с русской аудиодорожкой (2026-10-09)
+- **Задача (пользователь, 2026-10-09)**: «Нужно чтобы была возможность скачивать
+  аудиодорожку на русском языке с видео!»
+- **Базовая часть уже была в коде** (коммит `dfada5a`): выбор ORIGINAL/RU/BOTH
+  (`AudioChoice.kt`, экран «Добавить», RU виден только при `hasRuTrack`),
+  селектор формата (`YtDlpFormats.kt`: RU → `bv*[height≤X]+ba[language=ru]`,
+  BOTH → `…+ba+ba[language=ru]` + `--audio-multistreams`), контейнер
+  (BOTH → mkv, иначе mp4).
+- **Добавлено в этой сессии — тегирование языка дорожек** (`YtDlpFormats.kt`):
+  `addAudioLanguageTags()` для RU/BOTH добавляет `--embed-metadata` +
+  `--no-embed-info-json`. Без `--embed-metadata` ffmpeg НЕ пишет тег `language`
+  на аудиопотоки — в плеере обе дорожки были бы «Дорожка 1 / Дорожка 2».
+  `--no-embed-info-json` обязателен: при `--embed-metadata` yt-dlp сам включает
+  `embed_infojson='if_exists'` (проверено по `yt_dlp/__init__.py:607`) и встроил бы
+  в mkv огромный info.json (десятки МБ). Путь ORIGINAL не тронут.
+- **Сборка**: `gradlew.bat assembleDebug` — BUILD SUCCESSFUL; `adb install -r`
+  на телефон c985efb2 — Success.
+- **Живая проверка RU/BOTH — за пользователем** (его решение, 2026-10-09).
+  Команды для автотеста (флаги в `/sdcard/Android/data/com.localtube/files/`):
+  `debug_add_url` (содержимое = ссылка) + `debug_audio_choice` (RU или BOTH) +
+  `debug_auto_download` + `debug_no_comments`; маркеры в logcat под тегом
+  `LocalTubeDebug`: `FETCH_OK … hasRu=true`, затем задача DONE. В плеере —
+  флаг `debug_audio_switch`: маркеры `AUDIO_TRACKS count=… langs=…`,
+  `SWITCH_TO_RU`, `RU_PLAYING delta≈5000ms`. Ожидание: RU → mp4 с дорожкой
+  «русский»; BOTH → mkv с двумя дорожками.
+- **Находки для будущих этапов**:
+  - innertube player API (2026-10-09) заблокирован на всех клиентах без cookies:
+    ANDROID → 400 «Precondition check failed», MWEB → UNPLAYABLE
+    «Необходимо перезагрузить страницу» (бот-чек), TV → error. Языки дорожек
+    через него из shell не получить; в HTML watch-страницы m.youtube.com
+    аудиоформатов нет. Рабочий путь — сам yt-dlp в приложении («Проверить»,
+    `-J`) и HTML-поиск m.youtube.com (обычный curl, 27 видео на запрос).
+  - ByeDPI периодически убивается MIUI: перезапуск
+    `am start -n io.github.romanvht.byedpi/.activities.MainActivity`, через ~8 с
+    появляется tun0 — после этого YouTube в shell снова доступен.
+- Временные probe-скрипты (ru_probe*.sh) удалены из папки проекта.
 
 ## Этап 8: комментарии с ответами + новый yt-dlp в assets + разбивка VideoDownloader (2026-10-09)
 - **Задача (пользователь, 2026-10-09)**: «сделай готовое приложение с рабочими комментариями
