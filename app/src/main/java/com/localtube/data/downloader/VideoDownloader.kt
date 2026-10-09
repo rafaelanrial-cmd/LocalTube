@@ -1,7 +1,6 @@
 package com.localtube.data.downloader
 
 import android.content.Context
-import android.util.Log
 import com.localtube.DebugFlags
 import com.localtube.data.db.DownloadStatus
 import com.localtube.data.db.DownloadTaskEntity
@@ -23,12 +22,16 @@ import java.io.File
  *    `bv*[height<=X]+ba/b` и RU `bv*[height<=X]+ba[language=ru]` (mp4), BOTH
  *    `bv*[height<=X]+ba+ba[language=ru]` + --audio-multistreams (mkv);
  * 3) комментарии (Этап 8): при включённых — `--write-comments --write-info-json`
- *    с лимитом max_comments=500,50,10; json разбирается в Room и удаляется.
+ *    с лимитом max_comments (MAX_COMMENTS_ARG); json разбирается в Room и удаляется.
  *
  * Прогресс приходит колбэком библиотеки (проценты, ETA, сырая строка stderr);
  * скорость считается по дельте: прошлые lastBytes/lastTimeMs хранятся в
  * [DownloadTaskEntity], скорость = (байты − прошлые байты) / (сейчас − прошлое время).
  */
+
+/** Этап 8: лимит комментариев [всего,родители,ответы_всего,ответов_на_тред]. */
+private const val MAX_COMMENTS_ARG = "1000,150,600,20"
+
 class VideoDownloader(
     private val context: Context,
     private val ytDlpManager: YtDlpManager,
@@ -36,52 +39,11 @@ class VideoDownloader(
     private val videoRepo: VideoRepository,
 ) {
 
-    /** Последние значения колбэка: пишутся потоком библиотеки, читает цикл сервиса. */
-    class ProgressHolder {
-        @Volatile var progress: Float = 0f
-        @Volatile var etaSec: Long = -1L
-        @Volatile var bytes: Long = 0L
-        @Volatile var hasBytes: Boolean = false
-
-        /**
-         * Принимает nullable-параметры: сигнатура колбэка библиотеки может
-         * передавать и null (тип Function3 из AAR), компиляция проходит в любом случае.
-         */
-        fun onLine(progress: Float?, etaSec: Long?, line: String?) {
-            progress?.let { this.progress = it }
-            etaSec?.let { this.etaSec = it }
-            parseTotalBytes(line.orEmpty())?.let { total ->
-                // «of X MiB» — размер ВСЕГО файла, а не скачанное; дельта от него
-                // всегда 0 и скорость не считается. Скачанные байты считаем по
-                // процентам из той же строки прогресса.
-                val p = progress ?: 0f
-                bytes = (total * p / 100f).toLong().coerceIn(0L, total)
-                hasBytes = true
-            }
-        }
-
-        /** «of 30.52MiB» / «of ~ 1.2GiB» в строке прогресса yt-dlp → всего байт. */
-        private fun parseTotalBytes(line: String): Long? {
-            val m = TOTAL_BYTES_REGEX.find(line) ?: return null
-            val value = m.groupValues[1].toDoubleOrNull() ?: return null
-            val multiplier = UNIT_MULTIPLIERS[m.groupValues[2]] ?: return null
-            return (value * multiplier).toLong().coerceAtLeast(0L)
-        }
-
-        companion object {
-            private val TOTAL_BYTES_REGEX = Regex("of\\s+(?:~\\s*)?([0-9.]+)\\s*([KMGT]?i?B)")
-            private val UNIT_MULTIPLIERS = mapOf(
-                "B" to 1.0,
-                "KiB" to 1024.0,
-                "MiB" to 1_048_576.0,
-                "GiB" to 1_073_741_824.0,
-                "TiB" to 1_099_511_627_776.0,
-            )
-        }
-    }
-
-    /** Свежие значения колбэка — их опрашивает DownloadService. */
+    /** Значения колбэка (см. YtDlpProgress.kt): пишутся потоком библиотеки, читает цикл сервиса. */
     val holder = ProgressHolder()
+
+    /** TODO(Этап 12): УДАЛИТЬ — отладочные выводы автотестов (YtDlpDebugLog). */
+    private val debugLog = YtDlpDebugLog(context)
 
     @Volatile private var processId: String? = null
     @Volatile private var cancelledFlag = false
@@ -111,9 +73,13 @@ class VideoDownloader(
 
                 // 3. Этап 8: .info.json → Room; файл удаляется внутри функции.
                 val commentsOk = if (task.withComments) {
+                    // Этап 8: аватары авторов — в avatars/ (дедупликация по каналу).
                     saveCommentsFromInfoJson(
                         taskRepo, video.id, File(videosDir, "${video.youtubeId}.info.json"),
-                    ) { dbg(it) } >= 0
+                        File(root, "avatars").apply { mkdirs() },
+                        // TODO(Этап 12): УДАЛИТЬ — диагностика: не удалять info.json при флаге.
+                        keepJson = DebugFlags.keepJsonFlagFile(context).exists(),
+                    ) { debugLog.dbg(it) } >= 0
                 } else false
 
                 val thumbFile = File(thumbsDir, "${video.youtubeId}.jpg")
@@ -170,7 +136,7 @@ class VideoDownloader(
             // назовётся «jNQXAC9IVRwwebm.jpg» вместо «jNQXAC9IVRw.jpg»).
             .addOption("-o", File(thumbsDir, "${video.youtubeId}.%(ext)s").absolutePath)
         val response = executeTracked(request, "thumb-${task.id}")
-        dbg("THUMB_EXIT code=${response.exitCode} stderr_tail=${stderrTail(response)}")
+        debugLog.dbg("THUMB_EXIT code=${response.exitCode} stderr_tail=${stderrTail(response)}")
         if (response.exitCode != 0) {
             throw YtDlpException("Превью: ${lastStderrLine(response)}")
         }
@@ -198,9 +164,9 @@ class VideoDownloader(
             .addOption(
                 "--extractor-args",
                 "youtube:player_client=${playerClient()}" +
-                    if (task.withComments) ";max_comments=500,50,10" else "",
+                    if (task.withComments) ";max_comments=$MAX_COMMENTS_ARG" else "",
             )
-            .addOption("-f", formatFor(task))
+            .addOption("-f", videoFormat(task.qualityHeight, task.audioChoice))
             .addOption("--merge-output-format", containerFor(task.audioChoice))
             // Точка обязательна: %(ext)s подставляется БЕЗ точки.
             .addOption("-o", File(videosDir, "${video.youtubeId}.%(ext)s").absolutePath)
@@ -217,7 +183,7 @@ class VideoDownloader(
         val response = executeTracked(request, "video-${task.id}") { progress, etaSec, line ->
             holder.onLine(progress, etaSec, line)
         }
-        dbg("VIDEO_EXIT code=${response.exitCode} stderr_tail=${stderrTail(response)}")
+        debugLog.dbg("VIDEO_EXIT code=${response.exitCode} stderr_tail=${stderrTail(response)}")
         if (response.exitCode != 0) {
             throw YtDlpException("Скачивание: ${lastStderrLine(response)}")
         }
@@ -228,22 +194,6 @@ class VideoDownloader(
             )
         }
     }
-
-    /** Этап 9: селектор формата в зависимости от выбора аудиодорожки. */
-    private fun formatFor(task: DownloadTaskEntity): String {
-        val videoPart = "bv*[height<=${task.qualityHeight}]"
-        return when (task.audioChoice) {
-            AudioChoice.ORIGINAL -> "$videoPart+ba/b"
-            // Если селектор не сработает — задача FAILED; тогда рабочий селектор
-            // подбирается по formats из -J и записывается в PROGRESS.md.
-            AudioChoice.RU -> "$videoPart+ba[language=ru]"
-            AudioChoice.BOTH -> "$videoPart+ba+ba[language=ru]"
-        }
-    }
-
-    /** Этап 9: контейнер на выходе: BOTH → mkv (две аудиодорожки), иначе mp4. */
-    private fun containerFor(choice: AudioChoice): String =
-        if (choice == AudioChoice.BOTH) "mkv" else "mp4"
 
     /**
      * Клиент плеера YouTube для yt-dlp. По умолчанию `android` (2026-10-06):
@@ -283,27 +233,16 @@ class VideoDownloader(
             } else {
                 YoutubeDL.execute(request, processId, onLine)
             }
-            dumpDebug(processId, "exitCode=${response.exitCode}", response.out + "\n===== ERR =====\n" + response.err)
+            debugLog.dumpDebug(processId, "exitCode=${response.exitCode}", response.out + "\n===== ERR =====\n" + response.err)
             response
         } catch (e: Exception) {
             // TODO(Этап 12): УДАЛИТЬ — при ненулевом exit code библиотека бросает
             // YoutubeDLException, у которого message = полный stderr; сохраняем его.
-            dumpDebug(processId, "EXCEPTION ${e::class.java.name}", e.message.orEmpty())
+            debugLog.dumpDebug(processId, "EXCEPTION ${e::class.java.name}", e.message.orEmpty())
             throw e
         } finally {
             this.processId = null
         }
-    }
-
-    /** TODO(Этап 12): УДАЛИТЬ — дамп out/err в файл на телефоне (только при флаге). */
-    private fun dumpDebug(processId: String, header: String, body: String) {
-        // Гейт по сессии: флаг-файл add_url одноразовый, удаляется при запуске.
-        if (!DebugFlags.sessionActive) return
-        val dump = File(
-            context.getExternalFilesDir(null) ?: context.filesDir,
-            "debug_ytdlp_$processId.txt",
-        )
-        dump.writeText("$header\n===== BODY =====\n$body")
     }
 
     private suspend fun finishCanceled(
@@ -312,7 +251,7 @@ class VideoDownloader(
         thumbsDir: File,
         videosDir: File,
     ): DownloadStatus {
-        dbg("PARTIAL_FILES " + partialListing(video.youtubeId, thumbsDir, videosDir))
+        debugLog.dbg("PARTIAL_FILES " + debugLog.partialListing(video.youtubeId, thumbsDir, videosDir))
         deletePartialFiles(video.youtubeId, thumbsDir, videosDir)
         updateTaskFresh(task) { it.copy(status = DownloadStatus.CANCELED, speedBps = 0L, etaSec = 0L) }
         return DownloadStatus.CANCELED
@@ -325,7 +264,7 @@ class VideoDownloader(
         videosDir: File,
         error: Exception,
     ): DownloadStatus {
-        dbg("PARTIAL_FILES " + partialListing(video.youtubeId, thumbsDir, videosDir))
+        debugLog.dbg("PARTIAL_FILES " + debugLog.partialListing(video.youtubeId, thumbsDir, videosDir))
         deletePartialFiles(video.youtubeId, thumbsDir, videosDir)
         val message = extractErrorMessage(error)
         updateTaskFresh(task) {
@@ -353,41 +292,4 @@ class VideoDownloader(
         taskRepo.updateTask(transform(fresh))
     }
 
-    /** Текст для FAILED: последние строки stderr — именно там причина ошибки. */
-    private fun extractErrorMessage(error: Exception): String {
-        val raw = error.message ?: "Неизвестная ошибка"
-        val lines = raw.trim().lineSequence().filter { it.isNotBlank() }.toList()
-        return if (lines.size <= 2) raw.take(300)
-        else lines.takeLast(3).joinToString(" | ").take(400)
-    }
-
-    /** Последняя непустая строка stderr — туда yt-dlp пишет причину ошибки. */
-    private fun lastStderrLine(response: YoutubeDLResponse): String =
-        response.err.trim().lineSequence().lastOrNull { it.isNotBlank() }?.take(300)
-            ?: "код ${response.exitCode}"
-
-    /** Последние 3 непустые строки stderr — предупреждения yt-dlp тоже туда пишут. */
-    private fun stderrTail(response: YoutubeDLResponse): String =
-        response.err.trim().lineSequence()
-            .filter { it.isNotBlank() }
-            .toList()
-            .takeLast(3)
-            .joinToString(" | ")
-            .take(400)
-
-    // TODO(Этап 12): УДАЛИТЬ — маркеры автотеста в logcat (тег LocalTubeDebug).
-    private fun dbg(message: String) {
-        // Гейт по сессии: флаг-файл add_url одноразовый, удаляется при запуске.
-        if (DebugFlags.sessionActive) {
-            Log.d(DebugFlags.TAG, message)
-        }
-    }
-
-    /** Список файлов задачи до удаления partial — чтобы видеть, что реально создал yt-dlp. */
-    private fun partialListing(youtubeId: String, vararg dirs: File): String =
-        dirs.joinToString("; ") { dir ->
-            dir.listFiles { f -> f.name.startsWith(youtubeId) }?.joinToString(",") {
-                "${it.name}(${it.length()})"
-            }.orEmpty()
-        }
 }

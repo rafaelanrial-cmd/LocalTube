@@ -15,6 +15,9 @@ import androidx.room.PrimaryKey
  * @param likeCount количество «нравится»
  * @param publishedAtEpoch дата публикации, секунды от epoch
  * @param parentId id родительского комментария (ответы), null для верхнего уровня
+ * @param authorThumbnailPath путь к файлу аватара автора (каталог avatars); пусто — не скачан
+ * @param isPinned закреплённый комментарий (первый в списке, как на YouTube)
+ * @param authorIsUploader автор комментария — владелец видео (бейдж «Автор»)
  */
 @Entity(
     tableName = "comments",
@@ -36,4 +39,8 @@ data class CommentEntity(
     val likeCount: Long = 0L,
     val publishedAtEpoch: Long = 0L,
     val parentId: Int? = null,
+    // Этап 8 (2026-10-08): аватары + дизайн как на YouTube.
+    val authorThumbnailPath: String = "",
+    val isPinned: Boolean = false,
+    val authorIsUploader: Boolean = false,
 )

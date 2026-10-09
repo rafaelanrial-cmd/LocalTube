@@ -27,9 +27,11 @@ import java.io.File
  * - [AUDIO_SWITCH_FLAG_FILE_NAME] — в плеере: лог AUDIO-дорожек + переключение
  *   на RU и обратно без перезапуска (автотест Этапа 9);
  * - [NO_COMMENTS_FLAG_FILE_NAME] — автоскачивание идёт без комментариев
- *   (Этап 8 пока не проверяется; автотест Этапа 9 изолирован от него);
+ *   (автотест Этапа 9 изолирован от скачивания комментариев);
  * - [FULLSCREEN_FLAG_FILE_NAME] — в плеере сам включает полноэкранный режим
- *   (автотест 2026-10-08); одноразовый — удаляется после срабатывания.
+ *   (автотест 2026-10-08); одноразовый — удаляется после срабатывания;
+ * - [KEEP_JSON_FLAG_FILE_NAME] — НЕ удалять .info.json после разбора комментариев
+ *   (диагностика «нет ответов на комментарии», 2026-10-09).
  * Маркеры — в logcat под тегом [TAG]. Флаги: adb shell touch
  * /sdcard/Android/data/com.localtube/files/<имя флага>.
  *
@@ -149,7 +151,7 @@ object DebugFlags {
     fun audioSwitchFlagFile(context: Context): File =
         File(context.getExternalFilesDir(null) ?: context.filesDir, AUDIO_SWITCH_FLAG_FILE_NAME)
 
-    /** Имя файла-флага: автоскачивание без комментариев (Этап 8 пока не делаем). */
+    /** Имя файла-флага: автоскачивание без комментариев (изоляция автотеста Этапа 9). */
     const val NO_COMMENTS_FLAG_FILE_NAME = "debug_no_comments"
 
     /** Файл-флага «без комментариев» (автотест Этапа 9); достаточно создать. */
@@ -176,4 +178,11 @@ object DebugFlags {
     /** Файл-флаг автотеста полноэкранного режима; достаточно просто создать. */
     fun fullscreenFlagFile(context: Context): File =
         File(context.getExternalFilesDir(null) ?: context.filesDir, FULLSCREEN_FLAG_FILE_NAME)
+
+    /** Имя файла-флага: не удалять .info.json после разбора (диагностика, 2026-10-09). */
+    const val KEEP_JSON_FLAG_FILE_NAME = "debug_keep_json"
+
+    /** Файл-флага «сохранить info.json» (диагностика ответов); достаточно создать. TODO(Этап 12): УДАЛИТЬ. */
+    fun keepJsonFlagFile(context: Context): File =
+        File(context.getExternalFilesDir(null) ?: context.filesDir, KEEP_JSON_FLAG_FILE_NAME)
 }

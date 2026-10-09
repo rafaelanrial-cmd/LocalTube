@@ -39,6 +39,9 @@ class YtDlpManager(appContext: Context) {
         initDeferred = deferred
         initScope.launch {
             try {
+                // Этап 8: AAR бандлит yt-dlp 2025.11.12 (нет ответов на комментарии) —
+                // до инициализации подставляем более новый из assets, если нужно.
+                YtDlpAssets.ensureUpToDate(context)
                 FFmpeg.init(context)
                 YoutubeDL.init(context)
                 deferred.complete(Unit)

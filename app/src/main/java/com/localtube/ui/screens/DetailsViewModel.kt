@@ -117,6 +117,9 @@ class DetailsViewModel(
             .groupBy { it.parentId!! }
         return all
             .filter { c -> c.parentId == null || byId[c.parentId] == null }
+            // Этап 8: закреплённые — первыми (сортировка стабильная: внутри групп
+            // сохраняется порядок DAO, то есть по убыванию лайков).
+            .sortedByDescending { it.isPinned }
             .map { toNode(it, childrenOf) }
     }
 

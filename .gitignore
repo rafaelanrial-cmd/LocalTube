@@ -30,3 +30,10 @@ captures/
 /it_err.txt
 /probe.sh
 build.log
+
+# Служебное (создано в сессии 2026-10-09, не коммитить)
+.kotlin/
+_build_ytdlp/
+pip/
+_diag*
+build_out.txt

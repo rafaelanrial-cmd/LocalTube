@@ -10,9 +10,9 @@ import java.io.File
  * Этап 8: комментарии из .info.json yt-dlp.
  *
  * Загрузка идёт с --write-comments --write-info-json и лимитом
- * youtube:max_comments=500,50,10 (обязателен — иначе json может весить 50+ МБ).
- * После скачивания [saveCommentsFromInfoJson] разбирает файл, сохраняет
- * комментарии в Room и удаляет json.
+ * youtube:max_comments (MAX_COMMENTS_ARG в VideoDownloader). После скачивания
+ * [saveCommentsFromInfoJson] разбирает файл, скачивает аватары авторов в
+ * avatars/ (дедупликация по каналу), сохраняет комментарии в Room и удаляет json.
  */
 
 /** Комментарий из info.json (имена полей yt-dlp). */
@@ -25,6 +25,11 @@ private data class YtDlpComment(
     val text: String? = null,
     val like_count: Long? = null,
     val timestamp: Long? = null, // epoch-секунды; может быть null (оценочное время)
+    // Этап 8 (2026-10-08): дизайн как на YouTube.
+    val author_thumbnail: String? = null, // URL аватара автора
+    val author_id: String? = null,        // id канала — ключ кэша аватаров
+    val is_pinned: Boolean? = null,       // закреплён автором/YouTube
+    val author_is_uploader: Boolean? = null, // автор комментария = владелец видео
 )
 
 /** Нужен только раздел комментариев из info.json. */
@@ -43,6 +48,12 @@ internal data class ParsedComment(
     val text: String,
     val likeCount: Long,
     val publishedAtEpoch: Long,
+    /** URL аватара автора; null/пусто — аватар не будет скачиваться. */
+    val authorThumbnailUrl: String?,
+    /** id канала автора (ключ кэша аватаров); null — ключ из MD5 URL. */
+    val channelId: String?,
+    val isPinned: Boolean,
+    val authorIsUploader: Boolean,
 )
 
 private val infoJsonParser = Json { ignoreUnknownKeys = true }
@@ -63,6 +74,10 @@ internal fun parseCommentsFromInfoJson(jsonText: String): List<ParsedComment> {
             text = c.text.orEmpty(),
             likeCount = (c.like_count ?: 0L).coerceAtLeast(0L),
             publishedAtEpoch = (c.timestamp ?: 0L).coerceAtLeast(0L),
+            authorThumbnailUrl = c.author_thumbnail?.takeIf { it.isNotBlank() },
+            channelId = c.author_id?.trim()?.takeIf { it.isNotEmpty() },
+            isPinned = c.is_pinned == true,
+            authorIsUploader = c.author_is_uploader == true,
         )
     }
 }
@@ -70,18 +85,46 @@ internal fun parseCommentsFromInfoJson(jsonText: String): List<ParsedComment> {
 /**
  * Сохраняет разобранные комментарии в Room. В списке yt-dlp родительский
  * комментарий всегда идёт раньше своих ответов, поэтому одного прохода
- * по карте id достаточно.
+ * по карте id достаточно. Аватары скачиваются ДО записи (блокирующий вызов —
+ * функция вызывается из IO-корутины DownloadService).
  * @return число сохранённых комментариев.
  */
 internal suspend fun saveParsedComments(
     repo: DownloadRepository,
     videoId: Int,
     parsed: List<ParsedComment>,
+    avatarsDir: File,
+    log: (String) -> Unit = {},
 ): Int {
     repo.deleteComments(videoId) // на случай повторной загрузки
+
+    // Этап 8: уникальные аватары — один файл на канал, кэш между видео.
+    val urlByKey = linkedMapOf<String, String>()
+    for (c in parsed) {
+        val url = c.authorThumbnailUrl ?: continue
+        val key = CommentAvatars.keyFor(c.channelId, url)
+        if (!urlByKey.containsKey(key)) urlByKey[key] = url
+    }
+    val pathByKey = mutableMapOf<String, String>()
+    var freshAvatars = 0
+    for ((key, url) in urlByKey) {
+        val file = File(avatarsDir, "$key.jpg")
+        val fresh = !file.exists() || file.length() <= 0L
+        if (CommentAvatars.downloadIfAbsent(url, file, log) && file.length() > 0L) {
+            pathByKey[key] = file.absolutePath
+            if (fresh) freshAvatars++
+        }
+    }
+    if (urlByKey.isNotEmpty()) {
+        log("AVATARS_SAVED total=${pathByKey.size} fresh=$freshAvatars")
+    }
+
     val roomIdByYtId = mutableMapOf<String, Int>()
     for (c in parsed) {
         val parentId = c.parentYtId?.let { roomIdByYtId[it] }
+        val avatarPath = c.authorThumbnailUrl
+            ?.let { pathByKey[CommentAvatars.keyFor(c.channelId, it)] }
+            .orEmpty()
         val id = repo.insertComment(
             CommentEntity(
                 videoId = videoId,
@@ -90,6 +133,9 @@ internal suspend fun saveParsedComments(
                 likeCount = c.likeCount,
                 publishedAtEpoch = c.publishedAtEpoch,
                 parentId = parentId,
+                authorThumbnailPath = avatarPath,
+                isPinned = c.isPinned,
+                authorIsUploader = c.authorIsUploader,
             ),
         )
         roomIdByYtId[c.ytId] = id.toInt()
@@ -98,14 +144,17 @@ internal suspend fun saveParsedComments(
 }
 
 /**
- * Этап 8: разбирает .info.json → Room и удаляет файл.
+ * Этап 8: разбирает .info.json → Room (с аватарами в [avatarsDir]) и удаляет файл.
  * Ошибка не фатальна для видео (оно уже скачано): возвращает -1.
+ * @param keepJson TODO(Этап 12): УДАЛИТЬ — диагностика «нет ответов»: не удалять json.
  * @return число сохранённых комментариев или -1, если json отсутствует/не читается.
  */
 internal suspend fun saveCommentsFromInfoJson(
     repo: DownloadRepository,
     videoId: Int,
     infoJsonFile: File,
+    avatarsDir: File,
+    keepJson: Boolean = false,
     log: (String) -> Unit = {},
 ): Int {
     if (!infoJsonFile.exists()) {
@@ -114,13 +163,17 @@ internal suspend fun saveCommentsFromInfoJson(
     }
     try {
         val parsed = parseCommentsFromInfoJson(infoJsonFile.readText())
-        val saved = saveParsedComments(repo, videoId, parsed)
+        val saved = saveParsedComments(repo, videoId, parsed, avatarsDir, log)
         log("COMMENTS_SAVED count=$saved")
         return saved
     } catch (e: Exception) {
         log("COMMENTS_PARSE_FAIL ${e.message}")
         return -1
     } finally {
-        infoJsonFile.delete() // json удаляется после разбора (задача Этапа 8)
+        if (keepJson) {
+            log("KEEP_JSON ${infoJsonFile.name}") // TODO(Этап 12): УДАЛИТЬ — диагностика
+        } else {
+            infoJsonFile.delete() // json удаляется после разбора (задача Этапа 8)
+        }
     }
 }

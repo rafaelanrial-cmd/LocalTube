@@ -29,7 +29,7 @@ class AppContainer(appContext: Context) {
     // Этап 2: Room-база и репозитории.
     val database: AppDatabase by lazy {
         Room.databaseBuilder(context, AppDatabase::class.java, AppDatabase.NAME)
-            .addMigrations(MIGRATION_2_3)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
             .fallbackToDestructiveMigration()
             .build()
     }
@@ -53,6 +53,15 @@ class AppContainer(appContext: Context) {
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE videos ADD COLUMN positionMs INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** Миграция 3→4 (Этап 8): аватары авторов, закрепление, бейдж «Автор». */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE comments ADD COLUMN authorThumbnailPath TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE comments ADD COLUMN isPinned INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE comments ADD COLUMN authorIsUploader INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

@@ -2,15 +2,10 @@ package com.localtube.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Reply
-import androidx.compose.material.icons.filled.ThumbUp
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -19,19 +14,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.localtube.R
-import com.localtube.data.db.CommentEntity
 import com.localtube.ui.screens.CommentNode
+import com.localtube.util.Formats
 
 /**
- * Блок «Комментарии» на экране деталей (Этап 8): топовые комментарии по
- * убыванию лайков, ответы свёрнуты за кнопкой «Показать N ответов» —
- * на каждом уровне вложенности. Каждый ответ помечен строкой
- * «Ответ на @автор» + иконка, чтобы было видно, что это ответ.
+ * Блок «Комментарии» на экране деталей (Этап 8, 2026-10-08): раскладка как на
+ * YouTube — счётчик сверху, закреплённый первым, ответы отступом под родителем.
+ * Ответы: первые [REPLY_INLINE_LIMIT] показаны сразу, остальные — за кнопкой
+ * «Показать ещё N» (экран деталей не lazy — так список остаётся лёгким).
  */
 @Composable
 fun CommentsSection(
@@ -47,122 +41,63 @@ fun CommentsSection(
         )
         return
     }
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        comments.forEach { CommentNodeView(node = it, depth = 0) }
+    Column(modifier = modifier.fillMaxWidth()) {
+        // Счётчик «N комментариев» — заголовок секции (как на YouTube).
+        val total = comments.totalWithReplies()
+        Text(
+            text = stringResource(R.string.comments_count, total, stringResource(commentWordRes(total))),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.padding(bottom = 12.dp),
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            comments.forEach { CommentNodeView(node = it, depth = 0) }
+        }
     }
 }
 
-/**
- * Узел дерева: комментарий + его ответы (рекурсия). Каждый уровень ответов
- * свёрнут за своей кнопкой «Показать N ответов»; отступ — по глубине.
- * [parentAuthor] — автор комментария, на который этот узел отвечает
- * (у топовых null — метка «Ответ на …» не показывается).
- */
+/** Топовый комментарий + его ответы (рекурсия); отступ — по глубине. */
 @Composable
-private fun CommentNodeView(node: CommentNode, depth: Int, parentAuthor: String? = null) {
-    var expanded by remember { mutableStateOf(false) }
+private fun CommentNodeView(node: CommentNode, depth: Int) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = (depth * 20).dp),
+            .padding(start = (depth * 52).dp), // как на YouTube: ширина аватара + зазор
     ) {
-        CommentBody(comment = node.comment, parentAuthor = parentAuthor)
-        if (node.replies.isNotEmpty()) {
-            if (!expanded) {
-                TextButton(onClick = { expanded = true }) {
+        CommentItem(comment = node.comment)
+        if (node.replies.isEmpty()) return
+        var showAll by remember { mutableStateOf(false) }
+        val shown = if (showAll) node.replies else node.replies.take(REPLY_INLINE_LIMIT)
+        Column(modifier = Modifier.padding(top = 10.dp)) {
+            shown.forEachIndexed { index, reply ->
+                if (index > 0) Spacer(Modifier.height(12.dp))
+                CommentNodeView(reply, depth + 1)
+            }
+            if (!showAll && node.replies.size > REPLY_INLINE_LIMIT) {
+                TextButton(onClick = { showAll = true }) {
+                    val hidden = node.replies.size - REPLY_INLINE_LIMIT
                     Text(
-                        stringResource(
-                            R.string.comments_show_replies,
-                            node.replies.size,
-                            stringResource(replyWordRes(node.replies.size)),
-                        ),
+                        stringResource(R.string.comments_more_replies, hidden, stringResource(replyWordRes(hidden))),
                     )
                 }
-            } else {
-                Column(modifier = Modifier.padding(top = 8.dp)) {
-                    node.replies.forEach {
-                        CommentNodeView(it, depth + 1, parentAuthor = node.comment.author)
-                    }
-                }
             }
         }
     }
 }
 
-/**
- * Один комментарий: (у ответов — метка «Ответ на @автор»), автор + дата,
- * текст, лайки. Ответы без вложенных детей.
- */
-@Composable
-private fun CommentBody(comment: CommentEntity, parentAuthor: String? = null) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        if (parentAuthor != null) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.padding(bottom = 2.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Reply,
-                    contentDescription = null,
-                    modifier = Modifier.size(13.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    text = stringResource(R.string.comments_reply_to, parentAuthor),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = comment.author,
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = formatDate(comment.publishedAtEpoch),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Text(
-            text = comment.text,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(top = 2.dp),
-        )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            modifier = Modifier.padding(top = 2.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Filled.ThumbUp,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = comment.likeCount.toString(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
+/** Сколько ответов видно до кнопки «Показать ещё». */
+private const val REPLY_INLINE_LIMIT = 3
 
-/** Русские формы слова «ответ» для кнопки «Показать N …». */
-private fun replyWordRes(count: Int): Int {
-    val mod10 = count % 10
-    val mod100 = count % 100
-    return when {
-        mod10 == 1 && mod100 != 11 -> R.string.comments_word_one
-        mod10 in 2..4 && mod100 !in 12..14 -> R.string.comments_word_few
-        else -> R.string.comments_word_many
-    }
-}
+/** Всего комментариев в дереве: топовые + все ответы. */
+private fun List<CommentNode>.totalWithReplies(): Int = sumOf { it.total() }
+
+private fun CommentNode.total(): Int = 1 + replies.sumOf { it.total() }
+
+/** Русские формы слова «комментарий». */
+private fun commentWordRes(count: Int): Int = Formats.pluralWordRes(
+    count, R.string.comments_word_comment_one, R.string.comments_word_comment_few, R.string.comments_word_comment_many,
+)
+
+/** Русские формы слова «ответ» для кнопки «Показать ещё N …». */
+private fun replyWordRes(count: Int): Int = Formats.pluralWordRes(
+    count, R.string.comments_word_one, R.string.comments_word_few, R.string.comments_word_many,
+)
