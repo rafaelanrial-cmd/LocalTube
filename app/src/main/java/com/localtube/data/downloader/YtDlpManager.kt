@@ -77,11 +77,11 @@ class YtDlpManager(appContext: Context) {
         val request = YoutubeDLRequest(url)
             .addOption("--no-playlist")
             .addOption("-J")
-        // TODO(Этап 12): УДАЛИТЬ — автотест Этапа 9: клиент из файла-флага
-        // (подбор рабочего player_client, когда дефолтный блокируется).
-        DebugFlags.readPlayerClient(context)?.let { client ->
-            request.addOption("--extractor-args", "youtube:player_client=$client")
-        }
+        // Этап 9 (фикс SABR): цепочка клиентов ВСЕГДА — иначе hasRuTrack ложится
+        // в SABR-only-сессиях (android один не видит RU-дорожку, yt-dlp #12482).
+        // TODO(Этап 12): УДАЛИТЬ чтение файла-флага (автотест: подбор клиента).
+        val client = DebugFlags.readPlayerClient(context) ?: DEFAULT_PLAYER_CLIENTS
+        request.addOption("--extractor-args", "youtube:player_client=$client")
         try {
             val response = YoutubeDL.execute(request, null, null)
             // TODO(Этап 12): УДАЛИТЬ — дамп сырого -J для разбора formats (Этап 9).

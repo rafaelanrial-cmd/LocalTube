@@ -188,7 +188,8 @@ class VideoDownloader(
         }
         debugLog.dbg("VIDEO_EXIT code=${response.exitCode} stderr_tail=${stderrTail(response)}")
         if (response.exitCode != 0) {
-            throw YtDlpException("Скачивание: ${lastStderrLine(response)}")
+            // Этап 9 (фикс): SABR-only-сессия получает человекочитаемое сообщение.
+            throw YtDlpException(downloadErrorMessage(response))
         }
         val ext = containerFor(task.audioChoice)
         if (!File(videosDir, "${video.youtubeId}.$ext").exists()) {
@@ -199,10 +200,10 @@ class VideoDownloader(
     }
 
     /**
-     * Клиент плеера YouTube для yt-dlp. По умолчанию `android` (2026-10-06):
-     * в этой стране YouTube заблокирован, весь трафик идёт через ByeDPI, и
-     * именно android стабильно проходит без 403; default/tv/ios/mweb/
-     * android_vr/tv_embedded на текущем выходном IP блокируются.
+     * Клиент(ы) плеера YouTube для yt-dlp. По умолчанию цепочка
+     * DEFAULT_PLAYER_CLIENTS (2026-10-09): весь трафик идёт через ByeDPI, и
+     * один клиент в любой сессии может блокироваться или отдавать только
+     * SABR-форматы без URL — цепочка страхует от обоих случаев.
      *
      * TODO(Этап 12): УДАЛИТЬ — файл debug_player_client переопределяет клиент
      * (автотест: какие клиенты проходят без блокировки на текущей сети).
@@ -215,11 +216,12 @@ class VideoDownloader(
         if (file.exists()) {
             file.readText().trim().takeIf { it.isNotEmpty() }?.let { return it }
         }
-        // 2026-10-06: дефолт tv → android. При работающем ByeDPI клиенты default/tv/ios/
-        // mweb/android_vr/tv_embedded дают 403 (анти-абьюз YouTube по выходному IP),
-        // а android стабильно скачивает (task 10, Id5RNRX30Gk DONE). Если 403 вернётся —
-        // перезапустить ByeDPI (новый IP) и/или перебрать клиентов через debug-файл.
-        return "android"
+        // 2026-10-09: дефолт android → цепочка DEFAULT_PLAYER_CLIENTS (см. YtDlpFormats):
+        // в SABR-only-сессиях один android отдаёт форматы без URL и RU-дорожка
+        // недоступна (yt-dlp #12482); visionos даёт все форматы с URL, включая RU.
+        // Если 403 вернётся — перезапустить ByeDPI (новый IP) и/или перебрать
+        // клиентов через debug-файл.
+        return DEFAULT_PLAYER_CLIENTS
     }
 
     /** Запускает yt-dlp, запоминая id процесса для отмены. */
