@@ -31,10 +31,10 @@
 
 ### Готовый APK / Ready-made APK
 
-Скачайте `LocalTube1.0.apk` со страницы [Releases](https://github.com/Rafael/LocalTube/releases) и установите
+Скачайте `LocalTube1.0.apk` со страницы [Releases](https://github.com/rafaelanrial-cmd/LocalTube/releases) и установите
 (при первом запуске Android попросит разрешить «Установку из неизвестных источников»).
 
-Download `LocalTube1.0.apk` from the [Releases](https://github.com/Rafael/LocalTube/releases) page and install it
+Download `LocalTube1.0.apk` from the [Releases](https://github.com/rafaelanrial-cmd/LocalTube/releases) page and install it
 (on first launch Android will ask you to allow "Install unknown apps").
 
 ### Сборка из исходников / Build from source
