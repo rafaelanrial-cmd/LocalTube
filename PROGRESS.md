@@ -59,7 +59,7 @@
   `embed_infojson='if_exists'` (проверено по `yt_dlp/__init__.py:607`) и встроил бы
   в mkv огромный info.json (десятки МБ). Путь ORIGINAL не тронут.
 - **Сборка**: `gradlew.bat assembleDebug` — BUILD SUCCESSFUL; `adb install -r`
-  на телефон c985efb2 — Success.
+  на тестовый телефон — Success.
 - **Фикс «RU/Обе дорожки не скачиваются» (2026-10-09)** — жалоба пользователя:
   ORIGINAL качался без ошибки, RU и BOTH падали с `Requested format is
   not available` + SABR-warning (yt-dlp #12482). Корень (доказано дампами с
@@ -122,7 +122,7 @@
   как K2 отчитывается о провале цепочки `?.`, указывая на её начало; бага компилятора нет.
   Исправлено: `substringAfter("'").substringBefore("'")`.
 - **Проверено агентом**: `assembleDebug` — BUILD SUCCESSFUL; APK установлен на телефон
-  (c985efb2, `adb install -r` = Success); приложение стартует, процесс жив, FATAL в
+  (тестовый телефон, `adb install -r` = Success); приложение стартует, процесс жив, FATAL в
   logcat нет (единственное — от стороннего com.drweb.antivirus). Временные файлы
   диагностики (`Scratch.kt`, `_init_cp.gradle`, `_cp_list.txt`) удалены.
 - **Подтверждено пользователем на телефоне (2026-10-09): ответы на комментарии
@@ -640,7 +640,7 @@
 - Gradle 8.14: `C:\gradle\gradle-8.14` (для генерации wrapper; сам проект собирается на Gradle 8.9 из плана)
 - Android SDK: `C:\Android` — platform-tools (adb 37.0.1), platforms;android-34, build-tools;34.0.0, cmdline-tools/latest
 - git 2.55.0; репозиторий `git init` на ветке main; identity: LocalTube Agent
-- Телефон: Xiaomi 2112123AG (Redmi Note 11 Pro 5G, «psyche»), MIUI V816, Android 13, adb-серийник `c985efb2`
+- Телефон: Xiaomi 2112123AG (Redmi Note 11 Pro 5G, «psyche»), MIUI V816, Android 13
 
 ### Замечания для следующих этапов
 - В оболочках Unsloth Studio JAVA_HOME/ANDROID_HOME могут быть пустыми: перед сборкой ставить `JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot'`.
