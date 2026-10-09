@@ -22,15 +22,13 @@ import java.io.File
  *    `bv*[height<=X]+ba/b` и RU `bv*[height<=X]+ba[language=ru]` (mp4), BOTH
  *    `bv*[height<=X]+ba+ba[language=ru]` + --audio-multistreams (mkv);
  * 3) комментарии (Этап 8): при включённых — `--write-comments --write-info-json`
- *    с лимитом max_comments (MAX_COMMENTS_ARG); json разбирается в Room и удаляется.
+ *    БЕЗ лимита max_comments (2026-10-09: берём ВСЕ, что отдаёт YouTube);
+ *    json разбирается в Room и удаляется.
  *
  * Прогресс приходит колбэком библиотеки (проценты, ETA, сырая строка stderr);
  * скорость считается по дельте: прошлые lastBytes/lastTimeMs хранятся в
  * [DownloadTaskEntity], скорость = (байты − прошлые байты) / (сейчас − прошлое время).
  */
-
-/** Этап 8: лимит комментариев [всего,родители,ответы_всего,ответов_на_тред]. */
-private const val MAX_COMMENTS_ARG = "1000,150,600,20"
 
 class VideoDownloader(
     private val context: Context,
@@ -159,20 +157,23 @@ class VideoDownloader(
         val request = YoutubeDLRequest(task.url)
             .addOption("--no-playlist")
             .addOption("--no-update") // без проверки обновления: тише и быстрее
-            // player_client + лимит комментариев — ОДИН --extractor-args: повторный
-            // опс с тем же ключом youtube в yt-dlp ПЕРЕПИСЫВАЕТ предыдущий.
+            // player_client — ОДИН --extractor-args: повторный опс с тем же ключом
+            // youtube в yt-dlp ПЕРЕПИСЫВАЕТ предыдущий. Лимита max_comments НЕТ:
+            // в yt-dlp 2026.08.19 пустые слоты = без ограничения (sys.maxsize),
+            // поэтому берём все комментарии, которые отдаёт YouTube.
             .addOption(
                 "--extractor-args",
-                "youtube:player_client=${playerClient()}" +
-                    if (task.withComments) ";max_comments=$MAX_COMMENTS_ARG" else "",
+                "youtube:player_client=${playerClient()}",
             )
             .addOption("-f", videoFormat(task.qualityHeight, task.audioChoice))
             .addOption("--merge-output-format", containerFor(task.audioChoice))
             // Точка обязательна: %(ext)s подставляется БЕЗ точки.
             .addOption("-o", File(videosDir, "${video.youtubeId}.%(ext)s").absolutePath)
         if (task.withComments) {
-            // Этап 8: комментарии в info.json; лимит max_comments выше обязателен —
-            // без него json мог бы весить 50+ МБ.
+            // Этап 8: комментарии в info.json. Лимита нет (решение пользователя,
+            // 2026-10-09): у видео с десятками тысяч комментариев извлечение займёт
+            // несколько минут (страницы continuations до скачивания файла) и json
+            // может весить десятки МБ — это принято как цена за «все комментарии».
             request.addOption("--write-comments")
             request.addOption("--write-info-json")
         }

@@ -52,6 +52,9 @@
     <string name="comments_pinned">Закреплено</string>
     <string name="comments_badge_author">Автор</string>
     <string name="comments_more_replies">Показать ещё %1$d %2$s</string>
+    <string name="comments_show_more">Показать ещё комментарии</string>
+    <string name="comments_reply_count">%1$d %2$s</string>
+    <string name="comments_hide_replies">Скрыть ответы</string>
     <string name="comments_word_one">ответ</string>
     <string name="comments_word_few">ответа</string>
     <string name="comments_word_many">ответов</string>
